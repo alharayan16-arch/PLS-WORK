@@ -28,9 +28,10 @@ async def create_welcome_gif(member):
     frames = []
 
     try:
-        font_big = ImageFont.truetype("arial.ttf", 60)
-        font_small = ImageFont.truetype("arial.ttf", 28)
-        font_logo = ImageFont.truetype("arial.ttf", 160)
+        font_big = ImageFont.truetype("Montserrat-Bold.ttf", 60)
+        font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+        font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 160)
+
     except:
         font_big = ImageFont.load_default()
         font_small = ImageFont.load_default()
