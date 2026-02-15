@@ -26,23 +26,21 @@ async def create_welcome_gif(member):
     frames = []
 
     # ---- FONTS ----
-    font_latin = ImageFont.truetype("NotoSans-Bold.ttf", 65)
+    font_title = ImageFont.truetype("NotoSans-Bold.ttf", 65)
     font_user = ImageFont.truetype("NotoSans-Regular.ttf", 38)
     font_small = ImageFont.truetype("NotoSans-Regular.ttf", 26)
     font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 32)
-    font_hindi = ImageFont.truetype("NotoSansDevanagari-Regular.ttf", 65)
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.now(datetime.UTC).strftime("%H:%M UTC")
 
     languages = [
-        ("Welcome", font_latin),
-        ("स्वागत है", font_hindi),  # Indian (Hindi)
-        ("Willkommen", font_latin),
-        ("Bienvenue", font_latin),
-        ("Benvenuto", font_latin),
-        ("Bienvenido", font_latin),
+        "Welcome",
+        "Willkommen",
+        "Bienvenue",
+        "Benvenuto",
+        "Bienvenido",
     ]
 
     # -------- 3 COLOR DIAGONAL GRADIENT --------
@@ -85,7 +83,7 @@ async def create_welcome_gif(member):
     spacing = 60
     total_frames = 240
     cycle_length = 80
-    typing_frames = 33
+    typing_frames = 55
 
     for frame in range(total_frames):
 
@@ -114,7 +112,7 @@ async def create_welcome_gif(member):
 
         # -------- SMOOTH TYPING --------
         lang_index = (frame // cycle_length) % len(languages)
-        text, font_used = languages[lang_index]
+        text = languages[lang_index]
 
         frame_in_cycle = frame % cycle_length
 
@@ -127,7 +125,7 @@ async def create_welcome_gif(member):
 
         draw.text((60, 60),
                   visible_text,
-                  font=font_used,
+                  font=font_title,
                   fill=(255, 255, 255))
 
         # -------- AVATAR --------
@@ -191,3 +189,4 @@ async def testwelcome(ctx):
 
 
 bot.run(TOKEN)
+
