@@ -56,18 +56,25 @@ async def create_welcome_gif(member):
     for i in range(total_frames):
 
         # --------- VIOLET → BLACK GRADIENT BACKGROUND ----------
-        bg = Image.new("RGBA", (width, height))
-        draw_bg = ImageDraw.Draw(bg)
+      # --------- SMOOTH VIOLET → BLACK GRADIENT ----------
+bg = Image.new("RGB", (width, height))
+pixels = bg.load()
 
-        for y in range(height):
-            ratio = y / height
-            r = int(60 * (1 - ratio))
-            g = int(0)
-            b = int(120 * (1 - ratio))
-            draw_bg.line([(0, y), (width, y)], fill=(r, g, b))
+top_color = (75, 0, 130)     # deep violet
+bottom_color = (0, 0, 0)     # black
 
-        img = bg
-        draw = ImageDraw.Draw(img)
+for y in range(height):
+    ratio = y / (height - 1)
+    r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+    g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+    b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+
+    for x in range(width):
+        pixels[x, y] = (r, g, b)
+
+img = bg.convert("RGBA")
+draw = ImageDraw.Draw(img)
+
 
         # Welcome text
         draw.text((50, 70), f"Welcome {username}", font=font_big, fill=(255, 255, 255))
