@@ -68,7 +68,7 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = 220
+    total_frames = 150
     typing_speed = 8
 
     cycle_lengths = [len(seq) * typing_speed for seq in sequences]
@@ -142,7 +142,7 @@ async def create_welcome_gif(member):
         draw = ImageDraw.Draw(img)
 
         # ---- STAGGERED AS STYLE ----
-        letter_spacing = 3   # reduced so S moves closer (left)
+        letter_spacing = 0   # reduced so S moves closer (left)
 
         a_width = draw.textlength("A", font=font_logo)
         s_width = draw.textlength("S", font=font_logo)
