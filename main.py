@@ -22,7 +22,7 @@ async def on_ready():
 
 
 async def create_welcome_gif(member):
-    width, height = 1000, 400
+    width, height = 900, 350
     frames = []
 
     font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
@@ -68,7 +68,7 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = 150
+    total_frames = 120
     typing_speed = 8
 
     cycle_lengths = [len(seq) * typing_speed for seq in sequences]
