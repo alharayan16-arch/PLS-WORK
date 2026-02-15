@@ -54,7 +54,7 @@ async def create_welcome_gif(member):
         b = int(170 * (1 - ratio))
         bg_draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    # Avatar
+    # Download avatar
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -67,14 +67,14 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = 160  # safe size
+    total_frames = 180
 
     for frame in range(total_frames):
 
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # XO pattern infinite
+        # XO infinite movement
         pattern = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern)
 
@@ -94,20 +94,14 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # -------- TYPING EFFECT --------
-        lang_index = (frame // 40) % len(languages)
+        # -------- CLEAN TYPING (NO DELETE) --------
+        lang_index = (frame // 30) % len(languages)
         text = languages[lang_index]
 
-        phase = frame % 40
+        typing_speed = 5  # smaller = faster
+        char_count = min(len(text), frame % 30 // typing_speed)
 
-        if phase < 20:
-            # typing forward
-            char_count = int(len(text) * (phase / 20))
-            visible_text = text[:char_count]
-        else:
-            # deleting backward
-            char_count = int(len(text) * ((40 - phase) / 20))
-            visible_text = text[:char_count]
+        visible_text = text[:char_count]
 
         draw.text((60, 60),
                   visible_text,
@@ -140,7 +134,6 @@ async def create_welcome_gif(member):
                   fill=(255, 255, 255))
 
         img = img.convert("P", palette=Image.ADAPTIVE, colors=128)
-
         frames.append(img)
 
     gif_path = f"welcome_{member.id}.gif"
