@@ -95,13 +95,22 @@ async def create_welcome_gif(member):
         draw = ImageDraw.Draw(img)
 
         # -------- CLEAN TYPING (NO DELETE) --------
-        lang_index = (frame // 30) % len(languages)
-        text = languages[lang_index]
+       cycle_length = 50  # total frames per language
+       lang_index = (frame // cycle_length) % len(languages)
+       text = languages[lang_index]
 
-        typing_speed = 5  # smaller = faster
-        char_count = min(len(text), frame % 30 // typing_speed)
+       frame_in_cycle = frame % cycle_length
+ 
+       typing_frames = 30  # frames used for typing
+       hold_frames = 20    # frames holding full word
+ 
+       if frame_in_cycle < typing_frames:
+          progress = frame_in_cycle / typing_frames
+          char_count = int(progress * len(text))
+          visible_text = text[:char_count]
+      else:
+          visible_text = text  # hold full word
 
-        visible_text = text[:char_count]
 
         draw.text((60, 60),
                   visible_text,
