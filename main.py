@@ -26,44 +26,39 @@ async def create_welcome_image(member):
 
     font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
     font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 26)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
     font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 35)
 
     username = member.display_name
-    member_number = member.guild.member_count
+    member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    # --------- BACKGROUND ----------
-    bg = Image.new("RGB", (width, height), (20, 0, 35))
+    # --------- BASE DARK BACKGROUND ----------
+    bg = Image.new("RGB", (width, height), (15, 0, 30))
     draw = ImageDraw.Draw(bg)
 
-    # Smooth vertical gradient
-    top_color = (90, 0, 160)
-    bottom_color = (10, 0, 20)
-
+    # --------- VIOLET GRADIENT OVERLAY ----------
     for y in range(height):
         ratio = y / height
-        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
-        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
-        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+        r = int(80 * (1 - ratio))
+        g = 0
+        b = int(150 * (1 - ratio))
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-    img = bg.convert("RGBA")
-    draw = ImageDraw.Draw(img)
+    # --------- PATTERN OVERLAY ----------
+    pattern_color = (255, 255, 255, 15)
+    pattern = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    p_draw = ImageDraw.Draw(pattern)
 
-    # --------- DIAGONAL RIGHT SHAPE ----------
-    diagonal = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    d_draw = ImageDraw.Draw(diagonal)
+    spacing = 60
+    for y in range(0, height, spacing):
+        for x in range(0, width, spacing):
+            p_draw.text((x, y), "X", font=font_logo, fill=pattern_color)
+            p_draw.text((x + 25, y + 25), "O", font=font_logo, fill=pattern_color)
 
-    d_draw.polygon([
-        (width * 0.65, 0),
-        (width, 0),
-        (width, height),
-        (width * 0.85, height)
-    ], fill=(0, 0, 0, 80))
+    bg = Image.alpha_composite(bg.convert("RGBA"), pattern)
 
-    img = Image.alpha_composite(img, diagonal)
-    draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(bg)
 
     # --------- DOWNLOAD AVATAR ----------
     async with aiohttp.ClientSession() as session:
@@ -77,57 +72,21 @@ async def create_welcome_image(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
-    img.paste(avatar, (60, 170), avatar)
+    bg.paste(avatar, (60, 150), avatar)
 
     # --------- TEXT ----------
-    draw.text((60, 70),
-              "Welcome",
-              font=font_title,
-              fill=(255, 255, 255))
+    draw.text((60, 60), "Welcome", font=font_title, fill=(255, 255, 255))
+    draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
+    draw.text((200, 200), member_count, font=font_small, fill=(200, 200, 255))
+    draw.text((200, 230), join_time, font=font_small, fill=(200, 200, 255))
 
-    # Accent line under Welcome
-    draw.rectangle(
-        (60, 140, 260, 150),
-        fill=(140, 80, 255)
-    )
-
-    draw.text((200, 170),
-              username,
-              font=font_user,
-              fill=(255, 255, 255))
-
-    # --------- MEMBER BADGE ----------
-    badge_x = 200
-    badge_y = 220
-    badge_width = 150
-    badge_height = 40
-
-    draw.rounded_rectangle(
-        (badge_x, badge_y,
-         badge_x + badge_width,
-         badge_y + badge_height),
-        radius=20,
-        fill=(140, 80, 255, 200)
-    )
-
-    draw.text((badge_x + 25, badge_y + 6),
-              f"#{member_number}",
-              font=font_small,
-              fill=(255, 255, 255))
-
-    # Time under badge
-    draw.text((200, 270),
-              join_time,
-              font=font_small,
-              fill=(210, 210, 255))
-
-    # --------- AS LOGO BOTTOM LEFT ----------
+    # --------- BOTTOM LEFT AS LOGO ----------
     draw.text((60, height - 60),
               "AS",
               font=font_logo,
               fill=(255, 255, 255))
 
-    return img.convert("RGB")
+    return bg.convert("RGB")
 
 
 @bot.event
@@ -157,8 +116,8 @@ async def testwelcome(ctx):
         image_binary.seek(0)
 
         await ctx.send(
+            content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
             file=discord.File(fp=image_binary, filename="welcome.png")
         )
-
 
 bot.run(TOKEN)
