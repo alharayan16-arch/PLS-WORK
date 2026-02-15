@@ -31,7 +31,6 @@ async def create_welcome_gif(member):
     font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 110)
     font_link = ImageFont.truetype("Montserrat-Regular.ttf", 24)
 
-    # EXACT sequences
     sequences = [
         ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"],
         ["W","WI","WIL","WILL","WILLK","WILLKO","WILLKOM","WILLKOMM","WILLKOMME","WILLKOMMEN"],
@@ -70,11 +69,8 @@ async def create_welcome_gif(member):
 
     spacing = 60
     total_frames = 220
+    typing_speed = 8
 
-    # ----- Typing timing setup -----
-    typing_speed = 8  # frames per letter (slower + smoother)
-
-    # calculate full cycle length dynamically
     cycle_lengths = [len(seq) * typing_speed for seq in sequences]
     total_cycle = sum(cycle_lengths)
 
@@ -97,7 +93,7 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # ----- DYNAMIC LANGUAGE SWITCH -----
+        # Language typing logic
         cycle_frame = frame % total_cycle
         cumulative = 0
 
@@ -111,14 +107,14 @@ async def create_welcome_gif(member):
 
         draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
-        # USER INFO
+        # User info
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
         draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
         draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
 
         img.paste(avatar, (60, 150), avatar)
 
-        # STRIPES (LEFT → RIGHT infinite)
+        # Stripes
         stripe_canvas = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         s_draw = ImageDraw.Draw(stripe_canvas)
 
@@ -146,7 +142,7 @@ async def create_welcome_gif(member):
         draw = ImageDraw.Draw(img)
 
         # ---- STAGGERED AS STYLE ----
-        letter_spacing = 10
+        letter_spacing = 3   # reduced so S moves closer (left)
 
         a_width = draw.textlength("A", font=font_logo)
         s_width = draw.textlength("S", font=font_logo)
@@ -156,7 +152,7 @@ async def create_welcome_gif(member):
         as_x = width - as_total_width - 140
         as_y = 40
 
-        # Glow layer
+        # Glow
         for glow in [45, 30, 15]:
             glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
             glow_draw = ImageDraw.Draw(glow_layer)
@@ -175,23 +171,11 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # Main letters
-        draw.text((as_x, as_y - 12), "A",
-                  font=font_logo,
-                  fill=(255, 255, 255))
-
+        draw.text((as_x, as_y - 12), "A", font=font_logo, fill=(255, 255, 255))
         draw.text((as_x + a_width + letter_spacing, as_y),
-                  "S",
-                  font=font_logo,
-                  fill=(255, 255, 255))
+                  "S", font=font_logo, fill=(255, 255, 255))
 
-        # LINK
-        draw.text((as_x - 100, as_y + 115),
-                  "https://discord.gg/arabsstudio",
-                  font=font_link,
-                  fill=(255, 255, 255, 160)) 
-
-        # LINK MOVED LEFT
+        # Link
         draw.text((as_x - 100, as_y + 115),
                   "https://discord.gg/arabsstudio",
                   font=font_link,
@@ -217,24 +201,34 @@ async def create_welcome_gif(member):
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
+
+    # Send instantly
+    message = await channel.send(
+        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!"
+    )
+
+    # Generate GIF
     gif = await create_welcome_gif(member)
 
-    await channel.send(
+    # Edit to attach GIF
+    await message.edit(
         content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
-        file=discord.File(gif)
+        attachments=[discord.File(gif)]
     )
 
 
 @bot.command()
 async def testwelcome(ctx):
+    message = await ctx.send(
+        content=f"{ctx.author.mention}, Welcome to Arab’s Studio — we’re glad to have you here!"
+    )
+
     gif = await create_welcome_gif(ctx.author)
 
-    await ctx.send(
+    await message.edit(
         content=f"{ctx.author.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
-        file=discord.File(gif)
+        attachments=[discord.File(gif)]
     )
 
 
 bot.run(TOKEN)
-
-
