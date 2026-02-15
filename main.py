@@ -25,7 +25,6 @@ async def create_welcome_image(member):
     width, height = 1000, 400
     frames = []
 
-    # USE NOTO FONT (IMPORTANT)
     font_title = ImageFont.truetype("NotoSans-Bold.ttf", 70)
     font_user = ImageFont.truetype("NotoSans-Regular.ttf", 40)
     font_small = ImageFont.truetype("NotoSans-Regular.ttf", 28)
@@ -35,20 +34,18 @@ async def create_welcome_image(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    # Multi-language welcome texts
     welcome_texts = [
-        "Welcome",          # English
-        "مرحبًا",           # Arabic
-        "स्वागत है",        # Hindi
-        "Willkommen",       # German
-        "欢迎",              # Chinese
-        "Benvenuto"         # Italian
+        "Welcome",
+        "مرحبًا",
+        "स्वागत है",
+        "Willkommen",
+        "欢迎",
+        "Benvenuto"
     ]
 
-    # Clean dark base
+    # --------- BACKGROUND ----------
     base_bg = Image.new("RGBA", (width, height), (20, 0, 40, 255))
 
-    # Diagonal gradient
     gradient_layer = Image.new("RGBA", (width, height))
     pixels = gradient_layer.load()
 
@@ -64,8 +61,9 @@ async def create_welcome_image(member):
             pixels[x, y] = (r, g, b, 255)
 
     gradient_layer = gradient_layer.filter(ImageFilter.GaussianBlur(1))
+    base_bg = Image.alpha_composite(base_bg, gradient_layer)
 
-    # Download avatar
+    # --------- AVATAR ----------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -78,18 +76,23 @@ async def create_welcome_image(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    frames_per_text = 10  # how long each language shows
+    pattern_speed = 4
 
-    for i, welcome_word in enumerate(welcome_texts):
-        for frame in range(frames_per_text):
+    frame_index = 0
+
+    for welcome_word in welcome_texts:
+
+        # TYPEWRITER EFFECT
+        for i in range(1, len(welcome_word) + 1):
+
             img = base_bg.copy()
             draw = ImageDraw.Draw(img)
 
-            # Moving X/O pattern
+            # Moving pattern
             pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
             p_draw = ImageDraw.Draw(pattern_layer)
 
-            offset = (i * frames_per_text + frame) * 4
+            offset = frame_index * pattern_speed
 
             for y in range(0, height, spacing):
                 for x in range(0, width + spacing, spacing):
@@ -104,13 +107,15 @@ async def create_welcome_image(member):
 
             cropped_pattern = pattern_layer.crop((0, 0, width, height))
             img = Image.alpha_composite(img, cropped_pattern)
+
             draw = ImageDraw.Draw(img)
 
             # Avatar
             img.paste(avatar, (60, 150), avatar)
 
-            # Changing Welcome text
-            draw.text((60, 60), welcome_word, font=font_title, fill=(255, 255, 255))
+            # Typed text
+            typed_text = welcome_word[:i]
+            draw.text((60, 60), typed_text, font=font_title, fill=(255, 255, 255))
 
             # User info
             draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
@@ -118,12 +123,15 @@ async def create_welcome_image(member):
             draw.text((200, 230), join_time, font=font_small, fill=(220, 220, 255))
 
             # AS logo
-            draw.text((60, height - 60),
-                      "AS",
-                      font=font_logo,
-                      fill=(255, 255, 255))
+            draw.text((60, height - 60), "AS", font=font_logo, fill=(255, 255, 255))
 
             frames.append(img)
+            frame_index += 1
+
+        # Pause on full word
+        for _ in range(8):
+            frames.append(frames[-1])
+            frame_index += 1
 
     gif_path = f"welcome_{member.id}.gif"
 
@@ -131,7 +139,7 @@ async def create_welcome_image(member):
         gif_path,
         save_all=True,
         append_images=frames[1:],
-        duration=80,
+        duration=60,
         loop=0,
         disposal=2,
         optimize=True
@@ -158,9 +166,7 @@ async def testwelcome(ctx):
 
     gif = await create_welcome_image(member)
 
-    await ctx.send(
-        file=discord.File(gif)
-    )
+    await ctx.send(file=discord.File(gif))
 
 
 bot.run(TOKEN)
