@@ -6,6 +6,7 @@ import math
 import aiohttp
 import io
 import os
+import random
 
 TOKEN = os.getenv("TOKEN")
 WELCOME_CHANNEL_ID = 1472224372382109905
@@ -51,46 +52,56 @@ async def create_welcome_gif(member):
 
     for i in range(total_frames):
 
-        # --------- SMOOTH VIOLET → BLACK GRADIENT ----------
+        # --------- ULTRA SMOOTH VIOLET → BLACK GRADIENT ----------
         bg = Image.new("RGB", (width, height))
-        pixels = bg.load()
 
-        top_color = (75, 0, 130)     # violet
-        bottom_color = (0, 0, 0)    # black
+        top_color = (90, 0, 160)
+        bottom_color = (0, 0, 0)
 
         for y in range(height):
             ratio = y / (height - 1)
+
             r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
             g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
             b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
 
             for x in range(width):
-                pixels[x, y] = (r, g, b)
+                bg.putpixel((x, y), (r, g, b))
 
-        bg = bg.filter(ImageFilter.GaussianBlur(1))  # extra smooth
+        # --------- ANTI-BANDING NOISE ----------
+        noise_strength = 6
+
+        for y in range(height):
+            for x in range(width):
+                r, g, b = bg.getpixel((x, y))
+                noise = random.randint(-noise_strength, noise_strength)
+                r = max(0, min(255, r + noise))
+                g = max(0, min(255, g + noise))
+                b = max(0, min(255, b + noise))
+                bg.putpixel((x, y), (r, g, b))
+
         img = bg.convert("RGBA")
         draw = ImageDraw.Draw(img)
 
-        # Welcome text
-        draw.text((60, 80), f"Welcome {username}",
+        # --------- TEXT ----------
+        draw.text((60, 80),
+                  f"Welcome {username}",
                   font=font_big,
                   fill=(255, 255, 255))
 
-        # Avatar
         img.paste(avatar, (60, 160), avatar)
 
-        # Member info
         draw.text((170, 170),
                   member_count,
                   font=font_small,
-                  fill=(210, 210, 255))
+                  fill=(220, 220, 255))
 
         draw.text((170, 200),
                   join_time,
                   font=font_small,
-                  fill=(210, 210, 255))
+                  fill=(220, 220, 255))
 
-        # --------- AS GLOW ANIMATION ----------
+        # --------- AS GLOW ----------
         pulse = (math.sin(i / 8) + 1) / 2
         glow_alpha = int(150 + pulse * 80)
 
@@ -152,4 +163,3 @@ async def testwelcome(ctx):
 
 
 bot.run(TOKEN)
-
