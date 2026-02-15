@@ -28,14 +28,13 @@ async def create_welcome_gif(member):
     font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
     font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
     font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 105)  # slightly bigger
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 110)
     font_link = ImageFont.truetype("Montserrat-Regular.ttf", 24)
 
-    # EXACT typing sequences
+    # EXACT sequences
     sequences = [
         ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"],
         ["W","WI","WIL","WILL","WILLK","WILLKO","WILLKOM","WILLKOMM","WILLKOMME","WILLKOMMEN"],
-        ["B","BE","BEN","BENV","BENVE","BENVEN","BENVENU","BENVENUT","BENVENUTA"],
         ["B","BE","BEN","BENV","BENVE","BENVEN","BENVENU","BENVENUT","BENVENUTO"],
     ]
 
@@ -43,21 +42,21 @@ async def create_welcome_gif(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.now(datetime.UTC).strftime("%H:%M UTC")
 
-    # ----- DARK DIAGONAL BACKGROUND -----
+    # DARK DIAGONAL BACKGROUND
     base_bg = Image.new("RGB", (width, height))
     bg_draw = ImageDraw.Draw(base_bg)
 
     for y in range(height):
         for x in range(width):
             ratio = (x + y) / (width + height)
-            r = int(60 - ratio * 30)
+            r = int(55 - ratio * 30)
             g = 0
-            b = int(110 - ratio * 50)
+            b = int(105 - ratio * 50)
             bg_draw.point((x, y), fill=(r, g, b))
 
     base_bg = base_bg.convert("RGBA")
 
-    # ----- DOWNLOAD AVATAR -----
+    # AVATAR
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -69,21 +68,28 @@ async def create_welcome_gif(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
-    total_frames = 180
     spacing = 60
+    total_frames = 220
+
+    # ----- Typing timing setup -----
+    typing_speed = 8  # frames per letter (slower + smoother)
+
+    # calculate full cycle length dynamically
+    cycle_lengths = [len(seq) * typing_speed for seq in sequences]
+    total_cycle = sum(cycle_lengths)
 
     for frame in range(total_frames):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # ----- XO PATTERN (MORE VISIBLE) -----
+        # XO pattern
         pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
         for y in range(0, height, spacing):
             for x in range(0, width * 2, spacing):
-                p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 45))
-                p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 45))
+                p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
+                p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
 
         offset = (frame * 4) % spacing
         cropped_pattern = pattern_layer.crop((offset, 0, offset + width, height))
@@ -91,26 +97,28 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # ----- TYPING SYSTEM -----
-        sequence_duration = 45
-        seq_index = (frame // sequence_duration) % len(sequences)
-        current_sequence = sequences[seq_index]
+        # ----- DYNAMIC LANGUAGE SWITCH -----
+        cycle_frame = frame % total_cycle
+        cumulative = 0
 
-        frame_in_seq = frame % sequence_duration
-        letter_index = min(len(current_sequence)-1, frame_in_seq // 6)
-
-        welcome_text = current_sequence[letter_index]
+        for seq, seq_length in zip(sequences, cycle_lengths):
+            if cycle_frame < cumulative + seq_length:
+                local_frame = cycle_frame - cumulative
+                letter_index = min(len(seq)-1, local_frame // typing_speed)
+                welcome_text = seq[letter_index]
+                break
+            cumulative += seq_length
 
         draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
-        # ----- USER INFO -----
+        # USER INFO
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
         draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
         draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
 
         img.paste(avatar, (60, 150), avatar)
 
-        # ----- STRIPES (LEFT → RIGHT INFINITE) -----
+        # STRIPES (LEFT → RIGHT infinite)
         stripe_canvas = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         s_draw = ImageDraw.Draw(stripe_canvas)
 
@@ -126,7 +134,7 @@ async def create_welcome_gif(member):
                 (x + stripe_width, stripe_y),
                 (x + stripe_width - 35, stripe_y + stripe_height),
                 (x - 35, stripe_y + stripe_height)
-            ], fill=(255, 255, 255, 240))
+            ], fill=(255, 255, 255, 245))
 
         stripe_offset = (frame * 6) % stripe_spacing
         cropped_stripes = stripe_canvas.crop(
@@ -135,31 +143,30 @@ async def create_welcome_gif(member):
         )
 
         img = Image.alpha_composite(img, cropped_stripes)
-
         draw = ImageDraw.Draw(img)
 
-        # ----- BIGGER NEON AS -----
+        # ---- BIGGER AS (MOVED LEFT) ----
         text_width = draw.textlength("AS", font=font_logo)
-        as_x = width - text_width - 60
+        as_x = width - text_width - 140   # moved left
         as_y = 20
 
-        for glow in [40, 25, 12]:
+        for glow in [45, 30, 15]:
             glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
             glow_draw = ImageDraw.Draw(glow_layer)
             glow_draw.text((as_x, as_y), "AS",
                            font=font_logo,
-                           fill=(255, 255, 255, 200))
+                           fill=(255, 255, 255, 220))
             glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow))
             img = Image.alpha_composite(img, glow_layer)
 
         draw = ImageDraw.Draw(img)
         draw.text((as_x, as_y), "AS", font=font_logo, fill=(255, 255, 255))
 
-        # ----- DISCORD LINK (MOVED LEFT) -----
-        draw.text((as_x - 120, as_y + 100),
+        # LINK MOVED LEFT
+        draw.text((as_x - 60, as_y + 115),
                   "https://discord.gg/arabsstudio",
                   font=font_link,
-                  fill=(255, 255, 255, 150))
+                  fill=(255, 255, 255, 160))
 
         frames.append(img)
 
