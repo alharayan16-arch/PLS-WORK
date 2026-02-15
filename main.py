@@ -188,18 +188,24 @@ async def create_welcome_gif(member):
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    gif = await create_welcome_gif(member)
+
+    gif = await create_welcome_image(member)
 
     await channel.send(
         content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
         file=discord.File(gif)
     )
 
-
 @bot.command()
 async def testwelcome(ctx):
-    gif = await create_welcome_gif(ctx.author)
-    await ctx.send(file=discord.File(gif))
+    member = ctx.author
+
+    gif = await create_welcome_image(member)
+
+    await ctx.send(
+        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
+        file=discord.File(gif)
+    )
 
 
 bot.run(TOKEN)
