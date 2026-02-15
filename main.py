@@ -25,43 +25,49 @@ async def create_welcome_gif(member):
     width, height = 900, 350
     frames = []
 
-    font_title = ImageFont.truetype("NotoSans-Bold.ttf", 65)
+    # ---- FONTS ----
+    font_latin = ImageFont.truetype("NotoSans-Bold.ttf", 65)
     font_user = ImageFont.truetype("NotoSans-Regular.ttf", 38)
     font_small = ImageFont.truetype("NotoSans-Regular.ttf", 26)
     font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 32)
+    font_hindi = ImageFont.truetype("NotoSansDevanagari-Regular.ttf", 65)
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.now(datetime.UTC).strftime("%H:%M UTC")
 
     languages = [
-        "Welcome",
-        "Willkommen",
-        "Bienvenue",
-        "Benvenuto",
-        "Bienvenido"
+        ("Welcome", font_latin),
+        ("स्वागत है", font_hindi),  # Indian (Hindi)
+        ("Willkommen", font_latin),
+        ("Bienvenue", font_latin),
+        ("Benvenuto", font_latin),
+        ("Bienvenido", font_latin),
     ]
 
-    # -------- CLEAN VERTICAL GRADIENT --------
+    # -------- 3 COLOR DIAGONAL GRADIENT --------
     base_bg = Image.new("RGBA", (width, height))
     pixels = base_bg.load()
 
-    top_color = (120, 0, 200)
-    bottom_color = (20, 0, 50)
+    color_top_left = (120, 0, 200)
+    color_middle = (80, 0, 150)
+    color_bottom_right = (20, 0, 60)
 
     for y in range(height):
-        ratio = y / height
-        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
-        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
-        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
-
         for x in range(width):
-            pixels[x, y] = (r, g, b, 255)
 
-    spacing = 60
-    total_frames = 220
-    cycle_length = 80
-    typing_frames = 33
+            ratio_x = x / width
+            ratio_y = y / height
+
+            blend1_r = int(color_top_left[0] * (1 - ratio_x) + color_middle[0] * ratio_x)
+            blend1_g = int(color_top_left[1] * (1 - ratio_x) + color_middle[1] * ratio_x)
+            blend1_b = int(color_top_left[2] * (1 - ratio_x) + color_middle[2] * ratio_x)
+
+            final_r = int(blend1_r * (1 - ratio_y) + color_bottom_right[0] * ratio_y)
+            final_g = int(blend1_g * (1 - ratio_y) + color_bottom_right[1] * ratio_y)
+            final_b = int(blend1_b * (1 - ratio_y) + color_bottom_right[2] * ratio_y)
+
+            pixels[x, y] = (final_r, final_g, final_b, 255)
 
     # -------- DOWNLOAD AVATAR --------
     async with aiohttp.ClientSession() as session:
@@ -75,12 +81,18 @@ async def create_welcome_gif(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 100, 100), fill=255)
     avatar.putalpha(mask)
 
+    # -------- ANIMATION SETTINGS --------
+    spacing = 60
+    total_frames = 240
+    cycle_length = 80
+    typing_frames = 33
+
     for frame in range(total_frames):
 
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # -------- XO PATTERN INFINITE --------
+        # -------- XO INFINITE MOVEMENT --------
         pattern = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern)
 
@@ -102,7 +114,7 @@ async def create_welcome_gif(member):
 
         # -------- SMOOTH TYPING --------
         lang_index = (frame // cycle_length) % len(languages)
-        text = languages[lang_index]
+        text, font_used = languages[lang_index]
 
         frame_in_cycle = frame % cycle_length
 
@@ -115,7 +127,7 @@ async def create_welcome_gif(member):
 
         draw.text((60, 60),
                   visible_text,
-                  font=font_title,
+                  font=font_used,
                   fill=(255, 255, 255))
 
         # -------- AVATAR --------
