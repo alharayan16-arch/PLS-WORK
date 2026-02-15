@@ -27,67 +27,80 @@ async def create_welcome_gif(member):
     width, height = 900, 300
     frames = []
 
-    try:
-        font_big = ImageFont.truetype("Montserrat-Bold.ttf", 60)
-        font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-        font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 160)
+    # Load fonts (no fallback needed now)
+    font_big = ImageFont.truetype("Montserrat-Bold.ttf", 60)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 160)
 
-    except:
-        font_big = ImageFont.load_default()
-        font_small = ImageFont.load_default()
-        font_logo = ImageFont.load_default()
+    # ✅ USE DISPLAY NAME
+    username = member.display_name
 
-    username = member.name
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
+    # Download avatar
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
 
     avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-    avatar = avatar.resize((55, 55))
+    avatar = avatar.resize((80, 80))
 
-    mask = Image.new("L", (55, 55), 0)
+    mask = Image.new("L", (80, 80), 0)
     mask_draw = ImageDraw.Draw(mask)
-    mask_draw.ellipse((0, 0, 55, 55), fill=255)
+    mask_draw.ellipse((0, 0, 80, 80), fill=255)
     avatar.putalpha(mask)
 
     total_frames = 40
 
     for i in range(total_frames):
-        img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+        # --------- VIOLET → BLACK GRADIENT BACKGROUND ----------
+        bg = Image.new("RGBA", (width, height))
+        draw_bg = ImageDraw.Draw(bg)
+
+        for y in range(height):
+            ratio = y / height
+            r = int(60 * (1 - ratio))
+            g = int(0)
+            b = int(120 * (1 - ratio))
+            draw_bg.line([(0, y), (width, y)], fill=(r, g, b))
+
+        img = bg
         draw = ImageDraw.Draw(img)
 
-        draw.text((50, 60), f"Welcome {username}", font=font_big, fill=(255, 255, 255, 255))
+        # Welcome text
+        draw.text((50, 70), f"Welcome {username}", font=font_big, fill=(255, 255, 255))
 
-        img.paste(avatar, (50, 135), avatar)
+        # Avatar
+        img.paste(avatar, (50, 150), avatar)
 
-        draw.text((120, 140), member_count, font=font_small, fill=(180, 180, 255, 255))
-        draw.text((120, 170), join_time, font=font_small, fill=(180, 180, 255, 255))
+        # Member info
+        draw.text((150, 160), member_count, font=font_small, fill=(200, 200, 255))
+        draw.text((150, 190), join_time, font=font_small, fill=(200, 200, 255))
 
-        movement_range = 2
-        offset_x = int(math.sin(i / 16) * movement_range)
-
-        logo_x = width - 260 + offset_x
-        logo_y = 20
-
-        pulse = (math.sin(i / 10) + 1) / 2
-        glow_alpha = int(170 + pulse * 60)
+        # --------- AS GLOW ----------
+        pulse = (math.sin(i / 8) + 1) / 2
+        glow_alpha = int(160 + pulse * 80)
 
         glow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         glow_draw = ImageDraw.Draw(glow_layer)
 
-        glow_draw.text((logo_x, logo_y), "AS", font=font_logo, fill=(255, 255, 255, glow_alpha))
-        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(6))
+        glow_draw.text((width - 260, 30), "AS",
+                       font=font_logo,
+                       fill=(255, 255, 255, glow_alpha))
 
+        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(8))
         img = Image.alpha_composite(img, glow_layer)
 
         draw = ImageDraw.Draw(img)
-        draw.text((logo_x, logo_y), "AS", font=font_logo, fill=(255, 255, 255, 255))
+        draw.text((width - 260, 30), "AS",
+                  font=font_logo,
+                  fill=(255, 255, 255))
 
         frames.append(img)
 
+    # Save GIF
     gif_path = f"welcome_{member.id}.gif"
 
     frames[0].save(
@@ -100,7 +113,6 @@ async def create_welcome_gif(member):
     )
 
     return gif_path
-
 
 @bot.event
 async def on_member_join(member):
