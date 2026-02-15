@@ -34,21 +34,22 @@ async def create_welcome_image(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    # --------- CLEAN SOLID BACKGROUND ----------
-    base_bg = Image.new("RGB", (width, height), (75, 0, 150))  # EXACT purple
+    # --------- EXACT PURPLE BACKGROUND ----------
+    base_bg = Image.new("RGB", (width, height), (88, 0, 170))
 
-    # Dark fade bottom overlay (no lines)
+    # --------- CLEAN DARK BOTTOM FADE ----------
     fade = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     fade_draw = ImageDraw.Draw(fade)
 
     for y in range(height):
-        alpha = int(180 * (y / height))
+        alpha = int(200 * (y / height))
         fade_draw.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
 
     base_bg = Image.alpha_composite(base_bg.convert("RGBA"), fade)
     base_bg = base_bg.filter(ImageFilter.GaussianBlur(1))
+    base_bg = base_bg.convert("RGBA")
 
-    # Download avatar once
+    # --------- DOWNLOAD AVATAR ONCE ----------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -71,7 +72,7 @@ async def create_welcome_image(member):
         pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
-        offset = frame * 3  # SPEED INCREASED
+        offset = frame * 4  # speed increased
 
         for y in range(0, height, spacing):
             for x in range(0, width + spacing, spacing):
@@ -120,6 +121,7 @@ async def create_welcome_image(member):
     )
 
     return gif_path
+
 
 @bot.event
 async def on_member_join(member):
