@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -35,12 +34,15 @@ async def create_welcome_image(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    # --------- DIAGONAL PURPLE BACKGROUND ----------
-    base_bg = Image.new("RGBA", (width, height))
-    pixels = base_bg.load()
+    # --------- CLEAN DARK BASE ----------
+    base_bg = Image.new("RGBA", (width, height), (20, 0, 40, 255))
 
-    base_color = (88, 0, 170)
-    dark_color = (10, 0, 30)
+    # --------- CREATE DIAGONAL GRADIENT (FOR PATTERN ONLY) ----------
+    gradient_layer = Image.new("RGBA", (width, height))
+    pixels = gradient_layer.load()
+
+    base_color = (110, 0, 200)
+    dark_color = (30, 0, 60)
 
     for y in range(height):
         for x in range(width):
@@ -50,7 +52,7 @@ async def create_welcome_image(member):
             b = int(base_color[2] * (1 - ratio) + dark_color[2] * ratio)
             pixels[x, y] = (r, g, b, 255)
 
-    base_bg = base_bg.filter(ImageFilter.GaussianBlur(1))
+    gradient_layer = gradient_layer.filter(ImageFilter.GaussianBlur(1))
 
     # --------- DOWNLOAD AVATAR ----------
     async with aiohttp.ClientSession() as session:
@@ -65,33 +67,33 @@ async def create_welcome_image(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = spacing  # seamless loop
+    total_frames = spacing
 
     for frame in range(total_frames):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # --------- RIGHT → LEFT MOVING PATTERN ----------
-        pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
-        p_draw = ImageDraw.Draw(pattern_layer)
+        # --------- MOVING PATTERN ----------
+        pattern_mask = Image.new("L", (width, height), 0)
+        mask_draw = ImageDraw.Draw(pattern_mask)
 
-        offset = frame * 4  # speed
+        offset = frame * 4
 
         for y in range(0, height, spacing):
             for x in range(0, width + spacing, spacing):
-                p_draw.text((x, y),
-                            "X",
-                            font=font_logo,
-                            fill=(255, 255, 255, 18))
-                p_draw.text((x + 25, y + 25),
-                            "O",
-                            font=font_logo,
-                            fill=(255, 255, 255, 18))
+                mask_draw.text((x - offset % spacing, y),
+                               "X",
+                               font=font_logo,
+                               fill=180)
+                mask_draw.text((x - offset % spacing + 25, y + 25),
+                               "O",
+                               font=font_logo,
+                               fill=180)
 
-        cropped_pattern = pattern_layer.crop((offset % spacing, 0,
-                                              offset % spacing + width, height))
+        # Apply gradient only where pattern exists
+        colored_pattern = Image.composite(gradient_layer, Image.new("RGBA", (width, height)), pattern_mask)
 
-        img = Image.alpha_composite(img, cropped_pattern)
+        img = Image.alpha_composite(img, colored_pattern)
         draw = ImageDraw.Draw(img)
 
         # --------- AVATAR ----------
