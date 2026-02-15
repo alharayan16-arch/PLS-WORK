@@ -5,6 +5,7 @@ import datetime
 import aiohttp
 import io
 import os
+import math
 
 TOKEN = os.getenv("TOKEN")
 WELCOME_CHANNEL_ID = 1472224372382109905
@@ -22,152 +23,149 @@ async def on_ready():
 
 
 async def create_welcome_gif(member):
-    width, height = 900, 350
+    width, height = 1000, 400
     frames = []
 
-    font_title = ImageFont.truetype("NotoSans-Bold.ttf", 65)
-    font_user = ImageFont.truetype("NotoSans-Regular.ttf", 38)
-    font_small = ImageFont.truetype("NotoSans-Regular.ttf", 26)
-    font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 55)
-    pattern_font = ImageFont.truetype("NotoSans-Regular.ttf", 28)
+    # Fonts
+    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
+    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 55)
+
+    languages = [
+        "Welcome",
+        "Willkommen",
+        "Benvenuto",
+        "欢迎"
+    ]
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
-    join_time = datetime.datetime.now(datetime.UTC).strftime("%H:%M UTC")
+    join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    languages = ["Welcome", "Willkommen", "Bienvenue", "Benvenuto"]
-
-    # ----- DIAGONAL GRADIENT BACKGROUND -----
-    base = Image.new("RGBA", (width, height))
-    px = base.load()
-
-    c1 = (130, 0, 220)
-    c2 = (80, 0, 150)
-    c3 = (15, 0, 60)
-
-    for y in range(height):
-        for x in range(width):
-            rx = x / width
-            ry = y / height
-
-            r1 = int(c1[0] * (1 - rx) + c2[0] * rx)
-            g1 = int(c1[1] * (1 - rx) + c2[1] * rx)
-            b1 = int(c1[2] * (1 - rx) + c2[2] * rx)
-
-            r = int(r1 * (1 - ry) + c3[0] * ry)
-            g = int(g1 * (1 - ry) + c3[1] * ry)
-            b = int(b1 * (1 - ry) + c3[2] * ry)
-
-            px[x, y] = (r, g, b, 255)
-
-    # ----- AVATAR -----
+    # Download avatar once
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
 
     avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-    avatar = avatar.resize((100, 100))
+    avatar = avatar.resize((110, 110))
 
-    mask = Image.new("L", (100, 100), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 100, 100), fill=255)
+    mask = Image.new("L", (110, 110), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
-    total_frames = 200
-    spacing = 60
+    total_frames = 60
 
     for frame in range(total_frames):
+        # ---------- DIAGONAL GRADIENT ----------
+        bg = Image.new("RGB", (width, height))
+        draw_bg = ImageDraw.Draw(bg)
 
-        img = base.copy()
+        for y in range(height):
+            for x in range(width):
+                ratio = (x + y) / (width + height)
+                r = int(120 * (1 - ratio))
+                g = 0
+                b = int(200 * (1 - ratio))
+                draw_bg.point((x, y), fill=(r, g, b))
+
+        img = bg.convert("RGBA")
         draw = ImageDraw.Draw(img)
 
-        # ----- XO MOVEMENT -----
-        pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
+        # ---------- XO PATTERN (INFINITE RIGHT → LEFT) ----------
+        pattern_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
-        offset = (frame * 3) % spacing
+        spacing = 60
+        offset = (frame * 4) % spacing
 
         for y in range(0, height, spacing):
-            for x in range(0, width + spacing, spacing):
-                p_draw.text((x, y), "X",
-                            font=pattern_font,
-                            fill=(255, 255, 255, 18))
-                p_draw.text((x + 25, y + 25), "O",
-                            font=pattern_font,
-                            fill=(255, 255, 255, 18))
+            for x in range(-spacing, width + spacing, spacing):
+                px = x - offset
+                p_draw.text((px, y), "X",
+                            font=font_small,
+                            fill=(255, 255, 255, 20))
+                p_draw.text((px + 25, y + 25), "O",
+                            font=font_small,
+                            fill=(255, 255, 255, 20))
 
-        cropped = pattern_layer.crop((offset, 0, offset + width, height))
-        img = Image.alpha_composite(img, cropped)
-
+        img = Image.alpha_composite(img, pattern_layer)
         draw = ImageDraw.Draw(img)
 
-        # ----- MOVING DIAGONAL STRIPES (LEFT → RIGHT) -----
-        stripe_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        s_draw = ImageDraw.Draw(stripe_layer)
+        # ---------- TYPING LANGUAGE ----------
+        cycle_length = 60
+        lang_index = (frame // cycle_length) % len(languages)
+        text = languages[lang_index]
 
-        stripe_offset = (frame * 6) % 400
+        frame_in_cycle = frame % cycle_length
+        typing_frames = 33
 
-        for i in range(-400, width + 400, 200):
-            x1 = i + stripe_offset
-            s_draw.polygon([
-                (x1, 0),
-                (x1 + 80, 0),
-                (x1 - 40, height),
-                (x1 - 120, height)
-            ], fill=(255, 255, 255, 35))
+        if frame_in_cycle < typing_frames:
+            progress = frame_in_cycle / typing_frames
+            char_count = int(progress * len(text))
+            visible_text = text[:char_count]
+        else:
+            visible_text = text
 
-        # DO NOT OVERLAP AS AREA
-        stripe_layer = stripe_layer.crop((150, 0, width, height))
-        img.paste(stripe_layer, (150, 0), stripe_layer)
-
-        draw = ImageDraw.Draw(img)
-
-        # ----- TYPING WELCOME -----
-        text = languages[(frame // 60) % len(languages)]
-        char_count = min(len(text), frame % 60)
-        draw.text((60, 60),
-                  text[:char_count],
+        # ---------- TEXT ----------
+        draw.text((60, 60), visible_text,
                   font=font_title,
                   fill=(255, 255, 255))
 
-        # ----- AVATAR + INFO -----
         img.paste(avatar, (60, 150), avatar)
 
-        draw.text((180, 150),
-                  username,
+        draw.text((200, 150), username,
                   font=font_user,
                   fill=(255, 255, 255))
 
-        draw.text((180, 195),
-                  member_count,
+        draw.text((200, 200), member_count,
                   font=font_small,
                   fill=(220, 220, 255))
 
-        draw.text((180, 225),
-                  join_time,
+        draw.text((200, 230), join_time,
                   font=font_small,
                   fill=(220, 220, 255))
 
-        # ----- NEON WHITE GLOW AS -----
-        as_x = 60
-        as_y = height - 80
+        # ---------- WHITE MOVING STRIPES (AS LEVEL ONLY) ----------
+        stripe_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        s_draw = ImageDraw.Draw(stripe_layer)
 
-        for glow in [12, 8, 5]:
-            glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-            g_draw = ImageDraw.Draw(glow_layer)
-            g_draw.text((as_x, as_y),
-                        "AS",
-                        font=font_logo,
-                        fill=(255, 255, 255, 120))
-            glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow))
-            img = Image.alpha_composite(img, glow_layer)
+        stripe_height = 55
+        stripe_y = height - 70
+        stripe_offset = (frame * 6) % 200
+
+        for i in range(-200, width + 200, 140):
+            x = i + stripe_offset
+            s_draw.polygon([
+                (x, stripe_y),
+                (x + 60, stripe_y),
+                (x + 20, stripe_y + stripe_height),
+                (x - 40, stripe_y + stripe_height)
+            ], fill=(255, 255, 255, 130))
+
+        img = Image.alpha_composite(img, stripe_layer)
+
+        # ---------- NEON GLOW AS ----------
+        glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        g_draw = ImageDraw.Draw(glow_layer)
+
+        as_position = (60, height - 70)
+
+        g_draw.text(as_position,
+                    "AS",
+                    font=font_logo,
+                    fill=(255, 255, 255, 255))
+
+        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(8))
+        img = Image.alpha_composite(img, glow_layer)
 
         draw = ImageDraw.Draw(img)
-        draw.text((as_x, as_y),
+        draw.text(as_position,
                   "AS",
                   font=font_logo,
                   fill=(255, 255, 255))
 
-        img = img.convert("P", palette=Image.ADAPTIVE, colors=128)
         frames.append(img)
 
     gif_path = f"welcome_{member.id}.gif"
@@ -198,8 +196,12 @@ async def on_member_join(member):
 
 @bot.command()
 async def testwelcome(ctx):
-    gif = await create_welcome_gif(ctx.author)
-    await ctx.send(file=discord.File(gif))
+    member = ctx.author
+    gif = await create_welcome_gif(member)
+
+    await ctx.send(
+        file=discord.File(gif)
+    )
 
 
 bot.run(TOKEN)
