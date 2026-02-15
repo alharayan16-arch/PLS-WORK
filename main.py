@@ -34,22 +34,19 @@ async def create_welcome_image(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    # --------- CLEAN SMOOTH GRADIENT ----------
-    bg = Image.new("RGB", (width, height))
-    draw_bg = ImageDraw.Draw(bg)
+    # --------- CLEAN SOLID BACKGROUND ----------
+    base_bg = Image.new("RGB", (width, height), (75, 0, 150))  # EXACT purple
 
-    top_color = (95, 0, 170)
-    bottom_color = (10, 0, 30)
+    # Dark fade bottom overlay (no lines)
+    fade = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    fade_draw = ImageDraw.Draw(fade)
 
     for y in range(height):
-        ratio = y / height
-        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
-        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
-        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
-        draw_bg.line([(0, y), (width, y)], fill=(r, g, b))
+        alpha = int(180 * (y / height))
+        fade_draw.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
 
-    bg = bg.filter(ImageFilter.GaussianBlur(2))
-    base_bg = bg.convert("RGBA")
+    base_bg = Image.alpha_composite(base_bg.convert("RGBA"), fade)
+    base_bg = base_bg.filter(ImageFilter.GaussianBlur(1))
 
     # Download avatar once
     async with aiohttp.ClientSession() as session:
@@ -64,17 +61,17 @@ async def create_welcome_image(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = spacing  # makes perfect seamless loop
+    total_frames = spacing  # seamless loop
 
     for frame in range(total_frames):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # --------- RIGHT → LEFT MOVING PATTERN ----------
+        # --------- FASTER RIGHT → LEFT PATTERN ----------
         pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
-        offset = frame  # 1px movement per frame
+        offset = frame * 3  # SPEED INCREASED
 
         for y in range(0, height, spacing):
             for x in range(0, width + spacing, spacing):
@@ -87,9 +84,10 @@ async def create_welcome_image(member):
                             font=font_logo,
                             fill=(255, 255, 255, 18))
 
-        cropped_pattern = pattern_layer.crop((offset, 0, offset + width, height))
-        img = Image.alpha_composite(img, cropped_pattern)
+        cropped_pattern = pattern_layer.crop((offset % spacing, 0,
+                                              offset % spacing + width, height))
 
+        img = Image.alpha_composite(img, cropped_pattern)
         draw = ImageDraw.Draw(img)
 
         # --------- AVATAR ----------
@@ -98,8 +96,8 @@ async def create_welcome_image(member):
         # --------- TEXT ----------
         draw.text((60, 60), "Welcome", font=font_title, fill=(255, 255, 255))
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
-        draw.text((200, 200), member_count, font=font_small, fill=(210, 210, 255))
-        draw.text((200, 230), join_time, font=font_small, fill=(210, 210, 255))
+        draw.text((200, 200), member_count, font=font_small, fill=(220, 220, 255))
+        draw.text((200, 230), join_time, font=font_small, fill=(220, 220, 255))
 
         # --------- AS LOGO ----------
         draw.text((60, height - 60),
@@ -115,14 +113,13 @@ async def create_welcome_image(member):
         gif_path,
         save_all=True,
         append_images=frames[1:],
-        duration=40,
+        duration=35,
         loop=0,
         disposal=2,
         optimize=True
     )
 
     return gif_path
-
 
 @bot.event
 async def on_member_join(member):
