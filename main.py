@@ -54,7 +54,7 @@ async def create_welcome_gif(member):
         b = int(170 * (1 - ratio))
         bg_draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    # Download avatar
+    # Avatar
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -67,7 +67,11 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = 180
+    total_frames = 240  # smooth cycle
+
+    cycle_length = 80        # frames per language
+    typing_frames = 55       # slow smooth typing
+    hold_frames = 25         # hold full word
 
     for frame in range(total_frames):
 
@@ -78,7 +82,7 @@ async def create_welcome_gif(member):
         pattern = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern)
 
-        offset = (frame * 5) % spacing
+        offset = (frame * 4) % spacing
 
         for y in range(0, height, spacing):
             for x in range(0, width + spacing, spacing):
@@ -94,23 +98,18 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # -------- CLEAN TYPING (NO DELETE) --------
-       cycle_length = 50  # total frames per language
-       lang_index = (frame // cycle_length) % len(languages)
-       text = languages[lang_index]
+        # -------- SLOW SMOOTH TYPING --------
+        lang_index = (frame // cycle_length) % len(languages)
+        text = languages[lang_index]
 
-       frame_in_cycle = frame % cycle_length
- 
-       typing_frames = 30  # frames used for typing
-       hold_frames = 20    # frames holding full word
- 
-       if frame_in_cycle < typing_frames:
-          progress = frame_in_cycle / typing_frames
-          char_count = int(progress * len(text))
-          visible_text = text[:char_count]
-      else:
-          visible_text = text  # hold full word
+        frame_in_cycle = frame % cycle_length
 
+        if frame_in_cycle < typing_frames:
+            progress = frame_in_cycle / typing_frames
+            char_count = int(progress * len(text))
+            visible_text = text[:char_count]
+        else:
+            visible_text = text  # hold full word
 
         draw.text((60, 60),
                   visible_text,
