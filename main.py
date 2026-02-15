@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import datetime
 import aiohttp
 import io
@@ -34,21 +34,24 @@ async def create_welcome_image(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    # --------- BASE BACKGROUND ----------
-    base_bg = Image.new("RGB", (width, height), (15, 0, 30))
-    draw_base = ImageDraw.Draw(base_bg)
+    # --------- CLEAN SMOOTH GRADIENT ----------
+    bg = Image.new("RGB", (width, height))
+    draw_bg = ImageDraw.Draw(bg)
+
+    top_color = (95, 0, 170)
+    bottom_color = (10, 0, 30)
 
     for y in range(height):
         ratio = y / height
-        r = int(80 * (1 - ratio))
-        g = 0
-        b = int(150 * (1 - ratio))
-        draw_base.line([(0, y), (width, y)], fill=(r, g, b))
+        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+        draw_bg.line([(0, y), (width, y)], fill=(r, g, b))
 
-    total_frames = 40
-    spacing = 60
+    bg = bg.filter(ImageFilter.GaussianBlur(2))
+    base_bg = bg.convert("RGBA")
 
-    # Download avatar ONCE (not every frame)
+    # Download avatar once
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -60,28 +63,33 @@ async def create_welcome_image(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
+    spacing = 60
+    total_frames = spacing  # makes perfect seamless loop
+
     for frame in range(total_frames):
-        img = base_bg.copy().convert("RGBA")
+        img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # --------- MOVING X O PATTERN ----------
-        pattern_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        # --------- RIGHT → LEFT MOVING PATTERN ----------
+        pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
-        offset = (frame * 4) % spacing  # speed control
+        offset = frame  # 1px movement per frame
 
         for y in range(0, height, spacing):
-            for x in range(-spacing, width, spacing):
-                p_draw.text((x + offset, y),
+            for x in range(0, width + spacing, spacing):
+                p_draw.text((x, y),
                             "X",
                             font=font_logo,
-                            fill=(255, 255, 255, 20))
-                p_draw.text((x + 25 + offset, y + 25),
+                            fill=(255, 255, 255, 18))
+                p_draw.text((x + 25, y + 25),
                             "O",
                             font=font_logo,
-                            fill=(255, 255, 255, 20))
+                            fill=(255, 255, 255, 18))
 
-        img = Image.alpha_composite(img, pattern_layer)
+        cropped_pattern = pattern_layer.crop((offset, 0, offset + width, height))
+        img = Image.alpha_composite(img, cropped_pattern)
+
         draw = ImageDraw.Draw(img)
 
         # --------- AVATAR ----------
@@ -90,8 +98,8 @@ async def create_welcome_image(member):
         # --------- TEXT ----------
         draw.text((60, 60), "Welcome", font=font_title, fill=(255, 255, 255))
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
-        draw.text((200, 200), member_count, font=font_small, fill=(200, 200, 255))
-        draw.text((200, 230), join_time, font=font_small, fill=(200, 200, 255))
+        draw.text((200, 200), member_count, font=font_small, fill=(210, 210, 255))
+        draw.text((200, 230), join_time, font=font_small, fill=(210, 210, 255))
 
         # --------- AS LOGO ----------
         draw.text((60, height - 60),
@@ -107,7 +115,7 @@ async def create_welcome_image(member):
         gif_path,
         save_all=True,
         append_images=frames[1:],
-        duration=80,
+        duration=40,
         loop=0,
         disposal=2,
         optimize=True
