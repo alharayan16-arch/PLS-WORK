@@ -1,3 +1,4 @@
+
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -5,7 +6,6 @@ import datetime
 import aiohttp
 import io
 import os
-import random
 
 TOKEN = os.getenv("TOKEN")
 WELCOME_CHANNEL_ID = 1472224372382109905
@@ -35,34 +35,24 @@ async def create_welcome_image(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    # --------- EXACT PURPLE BACKGROUND ----------
-    base_bg = Image.new("RGB", (width, height), (88, 0, 170))
+    # --------- DIAGONAL PURPLE BACKGROUND ----------
+    base_bg = Image.new("RGBA", (width, height))
+    pixels = base_bg.load()
 
-    # Bottom fade
-    fade = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    fade_draw = ImageDraw.Draw(fade)
-
-    for y in range(height):
-        alpha = int(200 * (y / height))
-        fade_draw.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
-
-    base_bg = Image.alpha_composite(base_bg.convert("RGBA"), fade)
-    base_bg = base_bg.convert("RGBA")
-
-    # --------- ADD FILM GRAIN ----------
-    noise_strength = 8  # adjust if needed (6–10 is good)
-
-    noise_layer = Image.new("RGBA", (width, height))
-    pixels = noise_layer.load()
+    base_color = (88, 0, 170)
+    dark_color = (10, 0, 30)
 
     for y in range(height):
         for x in range(width):
-            value = random.randint(-noise_strength, noise_strength)
-            pixels[x, y] = (value + 128, value + 128, value + 128, 25)
+            ratio = (x + y) / (width + height)
+            r = int(base_color[0] * (1 - ratio) + dark_color[0] * ratio)
+            g = int(base_color[1] * (1 - ratio) + dark_color[1] * ratio)
+            b = int(base_color[2] * (1 - ratio) + dark_color[2] * ratio)
+            pixels[x, y] = (r, g, b, 255)
 
-    base_bg = Image.alpha_composite(base_bg, noise_layer)
+    base_bg = base_bg.filter(ImageFilter.GaussianBlur(1))
 
-    # --------- DOWNLOAD AVATAR ONCE ----------
+    # --------- DOWNLOAD AVATAR ----------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -75,13 +65,13 @@ async def create_welcome_image(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = spacing
+    total_frames = spacing  # seamless loop
 
     for frame in range(total_frames):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # --------- RIGHT → LEFT PATTERN ----------
+        # --------- RIGHT → LEFT MOVING PATTERN ----------
         pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
@@ -104,16 +94,16 @@ async def create_welcome_image(member):
         img = Image.alpha_composite(img, cropped_pattern)
         draw = ImageDraw.Draw(img)
 
-        # Avatar
+        # --------- AVATAR ----------
         img.paste(avatar, (60, 150), avatar)
 
-        # Text
+        # --------- TEXT ----------
         draw.text((60, 60), "Welcome", font=font_title, fill=(255, 255, 255))
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
         draw.text((200, 200), member_count, font=font_small, fill=(220, 220, 255))
         draw.text((200, 230), join_time, font=font_small, fill=(220, 220, 255))
 
-        # AS logo
+        # --------- AS LOGO ----------
         draw.text((60, height - 60),
                   "AS",
                   font=font_logo,
