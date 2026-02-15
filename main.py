@@ -44,46 +44,34 @@ async def create_welcome_gif(member):
     avatar = avatar.resize((90, 90))
 
     mask = Image.new("L", (90, 90), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.ellipse((0, 0, 90, 90), fill=255)
+    ImageDraw.Draw(mask).ellipse((0, 0, 90, 90), fill=255)
     avatar.putalpha(mask)
+
+    # --------- CREATE SMOOTH GRADIENT BASE ONCE ----------
+    gradient = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(gradient)
+
+    top_color = (90, 0, 160)
+    bottom_color = (0, 0, 0)
+
+    for y in range(height):
+        ratio = y / height
+        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+    # Subtle blur removes banding
+    gradient = gradient.filter(ImageFilter.GaussianBlur(2))
 
     total_frames = 40
 
     for i in range(total_frames):
 
-        # --------- ULTRA SMOOTH VIOLET → BLACK GRADIENT ----------
-        bg = Image.new("RGB", (width, height))
-
-        top_color = (90, 0, 160)
-        bottom_color = (0, 0, 0)
-
-        for y in range(height):
-            ratio = y / (height - 1)
-
-            r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
-            g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
-            b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
-
-            for x in range(width):
-                bg.putpixel((x, y), (r, g, b))
-
-        # --------- ANTI-BANDING NOISE ----------
-        noise_strength = 6
-
-        for y in range(height):
-            for x in range(width):
-                r, g, b = bg.getpixel((x, y))
-                noise = random.randint(-noise_strength, noise_strength)
-                r = max(0, min(255, r + noise))
-                g = max(0, min(255, g + noise))
-                b = max(0, min(255, b + noise))
-                bg.putpixel((x, y), (r, g, b))
-
-        img = bg.convert("RGBA")
+        img = gradient.copy().convert("RGBA")
         draw = ImageDraw.Draw(img)
 
-        # --------- TEXT ----------
+        # Text
         draw.text((60, 80),
                   f"Welcome {username}",
                   font=font_big,
@@ -101,7 +89,7 @@ async def create_welcome_gif(member):
                   font=font_small,
                   fill=(220, 220, 255))
 
-        # --------- AS GLOW ----------
+        # Glow animation
         pulse = (math.sin(i / 8) + 1) / 2
         glow_alpha = int(150 + pulse * 80)
 
@@ -132,11 +120,11 @@ async def create_welcome_gif(member):
         append_images=frames[1:],
         duration=60,
         loop=0,
-        disposal=2
+        disposal=2,
+        optimize=True
     )
 
     return gif_path
-
 
 @bot.event
 async def on_member_join(member):
