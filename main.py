@@ -25,7 +25,6 @@ async def create_welcome_gif(member):
     width, height = 900, 350
     frames = []
 
-    # Fonts (Noto for multilingual support)
     font_title = ImageFont.truetype("NotoSans-Bold.ttf", 65)
     font_user = ImageFont.truetype("NotoSans-Regular.ttf", 38)
     font_small = ImageFont.truetype("NotoSans-Regular.ttf", 26)
@@ -37,18 +36,17 @@ async def create_welcome_gif(member):
 
     languages = [
         "Welcome",
-        "مرحبا",        # Arabic
-        "स्वागत है",     # Hindi
-        "Willkommen",   # German
-        "欢迎",          # Chinese
-        "Benvenuto"     # Italian
+        "مرحبا",
+        "स्वागत है",
+        "Willkommen",
+        "欢迎",
+        "Benvenuto"
     ]
 
-    # -------- CLEAN PURPLE BACKGROUND --------
+    # Background
     base_bg = Image.new("RGBA", (width, height), (88, 0, 170, 255))
     bg_draw = ImageDraw.Draw(base_bg)
 
-    # smooth vertical fade (NO LINES)
     for y in range(height):
         ratio = y / height
         r = int(88 * (1 - ratio))
@@ -56,7 +54,7 @@ async def create_welcome_gif(member):
         b = int(170 * (1 - ratio))
         bg_draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    # -------- DOWNLOAD AVATAR --------
+    # Avatar
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -69,18 +67,18 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = 120  # safe size
+    total_frames = 160  # safe size
 
     for frame in range(total_frames):
 
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # -------- XO PATTERN (INFINITE SMOOTH) --------
+        # XO pattern infinite
         pattern = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern)
 
-        offset = (frame * 5) % spacing  # faster smooth
+        offset = (frame * 5) % spacing
 
         for y in range(0, height, spacing):
             for x in range(0, width + spacing, spacing):
@@ -96,27 +94,30 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # -------- LANGUAGE SLIDE (CONTINUOUS) --------
-        lang_index = (frame // 20) % len(languages)
-        next_lang = (lang_index + 1) % len(languages)
+        # -------- TYPING EFFECT --------
+        lang_index = (frame // 40) % len(languages)
+        text = languages[lang_index]
 
-        progress = (frame % 20) / 20
-        y_offset = int(progress * 80)
+        phase = frame % 40
 
-        draw.text((60, 60 - y_offset),
-                  languages[lang_index],
+        if phase < 20:
+            # typing forward
+            char_count = int(len(text) * (phase / 20))
+            visible_text = text[:char_count]
+        else:
+            # deleting backward
+            char_count = int(len(text) * ((40 - phase) / 20))
+            visible_text = text[:char_count]
+
+        draw.text((60, 60),
+                  visible_text,
                   font=font_title,
                   fill=(255, 255, 255))
 
-        draw.text((60, 140 - y_offset),
-                  languages[next_lang],
-                  font=font_title,
-                  fill=(255, 255, 255))
-
-        # -------- AVATAR --------
+        # Avatar
         img.paste(avatar, (60, 150), avatar)
 
-        # -------- USER INFO --------
+        # User info
         draw.text((180, 150),
                   username,
                   font=font_user,
@@ -132,13 +133,12 @@ async def create_welcome_gif(member):
                   font=font_small,
                   fill=(220, 220, 255))
 
-        # -------- AS LOGO --------
+        # AS logo
         draw.text((60, height - 55),
                   "AS",
                   font=font_logo,
                   fill=(255, 255, 255))
 
-        # reduce palette (IMPORTANT)
         img = img.convert("P", palette=Image.ADAPTIVE, colors=128)
 
         frames.append(img)
@@ -161,7 +161,6 @@ async def create_welcome_gif(member):
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
-
     gif = await create_welcome_gif(member)
 
     await channel.send(
@@ -172,13 +171,8 @@ async def on_member_join(member):
 
 @bot.command()
 async def testwelcome(ctx):
-    member = ctx.author
-
-    gif = await create_welcome_gif(member)
-
-    await ctx.send(
-        file=discord.File(gif)
-    )
+    gif = await create_welcome_gif(ctx.author)
+    await ctx.send(file=discord.File(gif))
 
 
 bot.run(TOKEN)
