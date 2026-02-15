@@ -142,7 +142,7 @@ async def create_welcome_gif(member):
         draw = ImageDraw.Draw(img)
 
         # ---- STAGGERED AS STYLE ----
-        letter_spacing = -1   # reduced so S moves closer (left)
+        letter_spacing = -4   # reduced so S moves closer (left)
 
         a_width = draw.textlength("A", font=font_logo)
         s_width = draw.textlength("S", font=font_logo)
@@ -202,33 +202,20 @@ async def create_welcome_gif(member):
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
 
-    # Send instantly
-    message = await channel.send(
-        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!"
-    )
-
-    # Generate GIF
     gif = await create_welcome_gif(member)
 
-    # Edit to attach GIF
-    await message.edit(
+    await channel.send(
         content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
-        attachments=[discord.File(gif)]
+        file=discord.File(gif)
     )
-
 
 @bot.command()
 async def testwelcome(ctx):
-    message = await ctx.send(
-        content=f"{ctx.author.mention}, Welcome to Arab’s Studio — we’re glad to have you here!"
-    )
-
     gif = await create_welcome_gif(ctx.author)
 
-    await message.edit(
+    await ctx.send(
         content=f"{ctx.author.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
-        attachments=[discord.File(gif)]
+        file=discord.File(gif)
     )
-
 
 bot.run(TOKEN)
