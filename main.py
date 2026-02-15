@@ -70,7 +70,7 @@ async def create_welcome_gif(member):
     total_frames = 240  # smooth cycle
 
     cycle_length = 80        # frames per language
-    typing_frames = 55       # slow smooth typing
+    typing_frames = 40       # slow smooth typing
     hold_frames = 25         # hold full word
 
     for frame in range(total_frames):
