@@ -2,11 +2,9 @@ import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import datetime
-import math
 import aiohttp
 import io
 import os
-import random
 
 TOKEN = os.getenv("TOKEN")
 WELCOME_CHANNEL_ID = 1472224372382109905
@@ -23,131 +21,134 @@ async def on_ready():
     print(f"Logged in as {bot.user}")
 
 
-# ---------------- GIF CREATION ----------------
-async def create_welcome_gif(member):
-    width, height = 900, 300
-    frames = []
+# ---------------- PREMIUM PNG CREATION ----------------
+async def create_welcome_image(member):
+    width, height = 1000, 350
 
-    font_big = ImageFont.truetype("Montserrat-Bold.ttf", 60)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 160)
+    font_big = ImageFont.truetype("Montserrat-Bold.ttf", 65)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 30)
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 180)
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(member.display_avatar.url) as resp:
-            avatar_bytes = await resp.read()
+    # --------- SMOOTH GRADIENT BACKGROUND ----------
+    bg = Image.new("RGB", (width, height))
+    draw_bg = ImageDraw.Draw(bg)
 
-    avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-    avatar = avatar.resize((90, 90))
-
-    mask = Image.new("L", (90, 90), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 90, 90), fill=255)
-    avatar.putalpha(mask)
-
-    # --------- CREATE SMOOTH GRADIENT BASE ONCE ----------
-    gradient = Image.new("RGB", (width, height))
-    draw = ImageDraw.Draw(gradient)
-
-    top_color = (90, 0, 160)
-    bottom_color = (0, 0, 0)
+    top_color = (100, 0, 170)   # violet
+    bottom_color = (0, 0, 0)    # black
 
     for y in range(height):
         ratio = y / height
         r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
         g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
         b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
+        draw_bg.line([(0, y), (width, y)], fill=(r, g, b))
 
-    # Subtle blur removes banding
-    gradient = gradient.filter(ImageFilter.GaussianBlur(2))
+    bg = bg.filter(ImageFilter.GaussianBlur(2))
+    img = bg.convert("RGBA")
+    draw = ImageDraw.Draw(img)
 
-    total_frames = 40
+    # --------- GLASS PANEL ----------
+    panel_width = 820
+    panel_height = 220
+    panel_x = 90
+    panel_y = 70
 
-    for i in range(total_frames):
+    panel = Image.new("RGBA", (panel_width, panel_height), (255, 255, 255, 30))
+    panel = panel.filter(ImageFilter.GaussianBlur(8))
 
-        img = gradient.copy().convert("RGBA")
-        draw = ImageDraw.Draw(img)
+    img.paste(panel, (panel_x, panel_y), panel)
 
-        # Text
-        draw.text((60, 80),
-                  f"Welcome {username}",
-                  font=font_big,
-                  fill=(255, 255, 255))
+    # --------- DOWNLOAD AVATAR ----------
+    async with aiohttp.ClientSession() as session:
+        async with session.get(member.display_avatar.url) as resp:
+            avatar_bytes = await resp.read()
 
-        img.paste(avatar, (60, 160), avatar)
+    avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+    avatar = avatar.resize((110, 110))
 
-        draw.text((170, 170),
-                  member_count,
-                  font=font_small,
-                  fill=(220, 220, 255))
+    mask = Image.new("L", (110, 110), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
+    avatar.putalpha(mask)
 
-        draw.text((170, 200),
-                  join_time,
-                  font=font_small,
-                  fill=(220, 220, 255))
+    img.paste(avatar, (panel_x + 40, panel_y + 55), avatar)
 
-        # Glow animation
-        pulse = (math.sin(i / 8) + 1) / 2
-        glow_alpha = int(150 + pulse * 80)
+    # --------- TEXT ----------
+    text_x = panel_x + 180
 
-        glow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        glow_draw = ImageDraw.Draw(glow_layer)
+    draw.text((text_x, panel_y + 40),
+              f"Welcome {username}",
+              font=font_big,
+              fill=(255, 255, 255))
 
-        glow_draw.text((width - 260, 40),
-                       "AS",
-                       font=font_logo,
-                       fill=(255, 255, 255, glow_alpha))
+    draw.text((text_x, panel_y + 120),
+              member_count,
+              font=font_small,
+              fill=(220, 220, 255))
 
-        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(8))
-        img = Image.alpha_composite(img, glow_layer)
+    draw.text((text_x, panel_y + 160),
+              join_time,
+              font=font_small,
+              fill=(220, 220, 255))
 
-        draw = ImageDraw.Draw(img)
-        draw.text((width - 260, 40),
-                  "AS",
-                  font=font_logo,
-                  fill=(255, 255, 255))
+    # --------- AS LOGO ----------
+    logo_x = width - 300
+    logo_y = 60
 
-        frames.append(img)
+    glow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow_layer)
 
-    gif_path = f"welcome_{member.id}.gif"
+    glow_draw.text((logo_x, logo_y),
+                   "AS",
+                   font=font_logo,
+                   fill=(255, 255, 255, 80))
 
-    frames[0].save(
-        gif_path,
-        save_all=True,
-        append_images=frames[1:],
-        duration=60,
-        loop=0,
-        disposal=2,
-        optimize=True
-    )
+    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(15))
+    img = Image.alpha_composite(img, glow_layer)
 
-    return gif_path
+    draw = ImageDraw.Draw(img)
+    draw.text((logo_x, logo_y),
+              "AS",
+              font=font_logo,
+              fill=(255, 255, 255))
 
+    return img
+
+
+# ---------------- EVENTS ----------------
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
 
-    gif = await create_welcome_gif(member)
+    image = await create_welcome_image(member)
 
-    await channel.send(
-        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
-        file=discord.File(gif)
-    )
+    with io.BytesIO() as image_binary:
+        image.save(image_binary, format="PNG")
+        image_binary.seek(0)
+
+        await channel.send(
+            content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
+            file=discord.File(fp=image_binary, filename="welcome.png")
+        )
 
 
 @bot.command()
 async def testwelcome(ctx):
     member = ctx.author
 
-    gif = await create_welcome_gif(member)
+    image = await create_welcome_image(member)
 
-    await ctx.send(
-        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
-        file=discord.File(gif)
-    )
+    with io.BytesIO() as image_binary:
+        image.save(image_binary, format="PNG")
+        image_binary.seek(0)
+
+        await ctx.send(
+            content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
+            file=discord.File(fp=image_binary, filename="welcome.png")
+        )
 
 
 bot.run(TOKEN)
