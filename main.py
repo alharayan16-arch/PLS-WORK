@@ -1,4 +1,5 @@
 
+
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -31,32 +32,25 @@ async def create_welcome_gif(member):
     font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
     font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 45)
 
-    welcomes = [
-        "Welcome",
-        "Willkommen",
-        "Benvenuto",
-        "欢迎"
-    ]
-
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.now(datetime.UTC).strftime("%H:%M UTC")
 
-    # ---- Background diagonal gradient ----
+    # -------- DARKER DIAGONAL BACKGROUND --------
     base_bg = Image.new("RGB", (width, height))
     bg_draw = ImageDraw.Draw(base_bg)
 
     for y in range(height):
         for x in range(width):
             ratio = (x + y) / (width + height)
-            r = int(130 - ratio * 60)
+            r = int(90 - ratio * 50)   # darker red
             g = 0
-            b = int(200 - ratio * 120)
+            b = int(160 - ratio * 100)  # darker blue
             bg_draw.point((x, y), fill=(r, g, b))
 
     base_bg = base_bg.convert("RGBA")
 
-    # ---- Avatar ----
+    # -------- AVATAR --------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -68,14 +62,14 @@ async def create_welcome_gif(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
-    total_frames = 120
+    total_frames = 90
     spacing = 60
 
     for frame in range(total_frames):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # ---- Infinite XO pattern (RIGHT → LEFT) ----
+        # -------- XO PATTERN (RIGHT → LEFT, infinite) --------
         pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
@@ -84,24 +78,29 @@ async def create_welcome_gif(member):
                 p_draw.text((x, y), "X", font=font_logo, fill=(255, 255, 255, 20))
                 p_draw.text((x + 25, y + 25), "O", font=font_logo, fill=(255, 255, 255, 20))
 
-        offset = (frame * 3) % spacing
+        offset = (frame * 2) % spacing
         cropped_pattern = pattern_layer.crop((offset, 0, offset + width, height))
         img = Image.alpha_composite(img, cropped_pattern)
 
         draw = ImageDraw.Draw(img)
 
-        # ---- Language change every 30 frames ----
-        lang_index = (frame // 30) % len(welcomes)
-        welcome_text = welcomes[lang_index]
+        # -------- TYPING EFFECT (NO DELETE) --------
+        full_text = "WELCOME"
+        typing_speed = 6  # frames per letter
+
+        letters_to_show = min(len(full_text), frame // typing_speed)
+        welcome_text = full_text[:letters_to_show]
 
         draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
+
+        # -------- USER INFO --------
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
         draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
         draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
 
         img.paste(avatar, (60, 150), avatar)
 
-        # ---- Bottom white stripes (RIGHT → LEFT, no reset, no AS overlap) ----
+        # -------- STRIPES (LEFT → RIGHT, NEVER TOUCH AS) --------
         stripe_height = 60
         stripe_y = height - 80
         safe_zone = 160
@@ -122,24 +121,32 @@ async def create_welcome_gif(member):
             ], fill=(255, 255, 255, 220))
 
         stripe_offset = (frame * 6) % stripe_spacing
-        cropped_stripes = stripe_canvas.crop((stripe_offset, 0, stripe_offset + width, height))
+        cropped_stripes = stripe_canvas.crop(
+            (stripe_spacing - stripe_offset, 0,
+             stripe_spacing - stripe_offset + width, height)
+        )
+
         img = Image.alpha_composite(img, cropped_stripes)
 
         draw = ImageDraw.Draw(img)
 
-        # ---- Neon AS ----
+        # -------- NEON AS --------
         as_x = 60
         as_y = height - 75
 
         for glow in [10, 6, 3]:
             glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
             glow_draw = ImageDraw.Draw(glow_layer)
-            glow_draw.text((as_x, as_y), "AS", font=font_logo, fill=(255, 255, 255, 130))
+            glow_draw.text((as_x, as_y), "AS",
+                           font=font_logo,
+                           fill=(255, 255, 255, 140))
             glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow))
             img = Image.alpha_composite(img, glow_layer)
 
         draw = ImageDraw.Draw(img)
-        draw.text((as_x, as_y), "AS", font=font_logo, fill=(255, 255, 255))
+        draw.text((as_x, as_y), "AS",
+                  font=font_logo,
+                  fill=(255, 255, 255))
 
         frames.append(img)
 
@@ -149,7 +156,7 @@ async def create_welcome_gif(member):
         gif_path,
         save_all=True,
         append_images=frames[1:],
-        duration=40,
+        duration=45,
         loop=0,
         disposal=2,
         optimize=True
