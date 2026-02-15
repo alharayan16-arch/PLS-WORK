@@ -163,7 +163,7 @@ async def create_welcome_gif(member):
         draw.text((as_x, as_y), "AS", font=font_logo, fill=(255, 255, 255))
 
         # LINK MOVED LEFT
-        draw.text((as_x - 60, as_y + 115),
+        draw.text((as_x - 100, as_y + 115),
                   "https://discord.gg/arabsstudio",
                   font=font_link,
                   fill=(255, 255, 255, 160))
