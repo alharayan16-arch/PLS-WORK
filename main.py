@@ -27,7 +27,6 @@ async def create_welcome_image(member):
     width, height = 1000, 400
     frames = []
 
-    # FONTS
     font_title = ImageFont.truetype("NotoSans-Bold.ttf", 70)
     font_user = ImageFont.truetype("NotoSans-Regular.ttf", 40)
     font_small = ImageFont.truetype("NotoSans-Regular.ttf", 28)
@@ -35,9 +34,8 @@ async def create_welcome_image(member):
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
-    join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
+    join_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
 
-    # Arabic fix
     arabic_text = get_display(arabic_reshaper.reshape("مرحبًا"))
 
     welcome_texts = [
@@ -49,7 +47,7 @@ async def create_welcome_image(member):
         "Benvenuto"
     ]
 
-    # --------- DIAGONAL BACKGROUND ----------
+    # ---------- BACKGROUND ----------
     base_bg = Image.new("RGBA", (width, height))
     pixels = base_bg.load()
 
@@ -66,7 +64,7 @@ async def create_welcome_image(member):
 
     base_bg = base_bg.filter(ImageFilter.GaussianBlur(1))
 
-    # --------- DOWNLOAD AVATAR ----------
+    # ---------- AVATAR ----------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -78,65 +76,72 @@ async def create_welcome_image(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
+    # ---------- ANIMATION SETTINGS ----------
     spacing = 60
     pattern_speed = 4
+    slide_speed = 3  # language scroll speed
+    total_frames = 240  # smooth loop length
+
     global_frame = 0
 
-    for welcome_word in welcome_texts:
+    # Duplicate list for seamless infinite scroll
+    scroll_texts = welcome_texts + welcome_texts
 
-        # TYPEWRITER EFFECT
-        for i in range(1, len(welcome_word) + 1):
+    for frame in range(total_frames):
 
-            img = base_bg.copy()
-            draw = ImageDraw.Draw(img)
+        img = base_bg.copy()
+        draw = ImageDraw.Draw(img)
 
-            # MOVING X/O PATTERN (continuous)
-            pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
-            p_draw = ImageDraw.Draw(pattern_layer)
+        # ---------- CONTINUOUS PATTERN ----------
+        pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
+        p_draw = ImageDraw.Draw(pattern_layer)
 
-            offset = global_frame * pattern_speed
+        offset = global_frame * pattern_speed
 
-            for y in range(0, height, spacing):
-                for x in range(0, width + spacing, spacing):
-                    p_draw.text((x - offset % spacing, y),
-                                "X",
-                                font=font_logo,
-                                fill=(255, 255, 255, 18))
-                    p_draw.text((x - offset % spacing + 25, y + 25),
-                                "O",
-                                font=font_logo,
-                                fill=(255, 255, 255, 18))
+        for y in range(0, height, spacing):
+            for x in range(0, width + spacing, spacing):
+                p_draw.text((x - offset % spacing, y),
+                            "X",
+                            font=font_logo,
+                            fill=(255, 255, 255, 18))
+                p_draw.text((x - offset % spacing + 25, y + 25),
+                            "O",
+                            font=font_logo,
+                            fill=(255, 255, 255, 18))
 
-            cropped_pattern = pattern_layer.crop((0, 0, width, height))
-            img = Image.alpha_composite(img, cropped_pattern)
+        cropped_pattern = pattern_layer.crop((0, 0, width, height))
+        img = Image.alpha_composite(img, cropped_pattern)
 
-            draw = ImageDraw.Draw(img)
+        draw = ImageDraw.Draw(img)
 
-            # AVATAR
-            img.paste(avatar, (60, 150), avatar)
+        # ---------- SLIDING LANGUAGE ----------
+        scroll_position = frame * slide_speed
 
-            # TYPE TEXT
-            typed_text = welcome_word[:i]
-            draw.text((60, 60), typed_text, font=font_title, fill=(255, 255, 255))
+        for i, text in enumerate(scroll_texts):
+            y_position = 60 + i * 90 - scroll_position
 
-            # USER INFO
-            draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
-            draw.text((200, 200), member_count, font=font_small, fill=(220, 220, 255))
-            draw.text((200, 230), join_time, font=font_small, fill=(220, 220, 255))
+            if -100 < y_position < height:
+                draw.text((60, y_position),
+                          text,
+                          font=font_title,
+                          fill=(255, 255, 255))
 
-            # AS LOGO
-            draw.text((60, height - 60),
-                      "AS",
-                      font=font_logo,
-                      fill=(255, 255, 255))
+        # ---------- AVATAR ----------
+        img.paste(avatar, (60, 150), avatar)
 
-            frames.append(img)
-            global_frame += 1
+        # ---------- USER INFO ----------
+        draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
+        draw.text((200, 200), member_count, font=font_small, fill=(220, 220, 255))
+        draw.text((200, 230), join_time, font=font_small, fill=(220, 220, 255))
 
-        # Pause after full word
-        for _ in range(10):
-            frames.append(frames[-1])
-            global_frame += 1
+        # ---------- AS LOGO ----------
+        draw.text((60, height - 60),
+                  "AS",
+                  font=font_logo,
+                  fill=(255, 255, 255))
+
+        frames.append(img)
+        global_frame += 1
 
     gif_path = f"welcome_{member.id}.gif"
 
@@ -144,7 +149,7 @@ async def create_welcome_image(member):
         gif_path,
         save_all=True,
         append_images=frames[1:],
-        duration=60,
+        duration=35,
         loop=0,
         disposal=2,
         optimize=True
@@ -156,7 +161,6 @@ async def create_welcome_image(member):
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
-
     gif = await create_welcome_image(member)
 
     await channel.send(
