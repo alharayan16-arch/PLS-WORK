@@ -28,7 +28,7 @@ async def create_welcome_gif(member):
     font_title = ImageFont.truetype("NotoSans-Bold.ttf", 65)
     font_user = ImageFont.truetype("NotoSans-Regular.ttf", 38)
     font_small = ImageFont.truetype("NotoSans-Regular.ttf", 26)
-    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 32)
+    font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 32)
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
@@ -36,25 +36,34 @@ async def create_welcome_gif(member):
 
     languages = [
         "Welcome",
-        "مرحبا",
-        "स्वागत है",
         "Willkommen",
-        "欢迎",
-        "Benvenuto"
+        "Bienvenue",
+        "Benvenuto",
+        "Bienvenido"
     ]
 
-    # Background
-    base_bg = Image.new("RGBA", (width, height), (88, 0, 170, 255))
-    bg_draw = ImageDraw.Draw(base_bg)
+    # -------- CLEAN VERTICAL GRADIENT --------
+    base_bg = Image.new("RGBA", (width, height))
+    pixels = base_bg.load()
+
+    top_color = (120, 0, 200)
+    bottom_color = (20, 0, 50)
 
     for y in range(height):
         ratio = y / height
-        r = int(88 * (1 - ratio))
-        g = 0
-        b = int(170 * (1 - ratio))
-        bg_draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
+        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
 
-    # Avatar
+        for x in range(width):
+            pixels[x, y] = (r, g, b, 255)
+
+    spacing = 60
+    total_frames = 220
+    cycle_length = 80
+    typing_frames = 33
+
+    # -------- DOWNLOAD AVATAR --------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -66,19 +75,12 @@ async def create_welcome_gif(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 100, 100), fill=255)
     avatar.putalpha(mask)
 
-    spacing = 60
-    total_frames = 240  # smooth cycle
-
-    cycle_length = 80        # frames per language
-    typing_frames = 35       # slow smooth typing
-    hold_frames = 25         # hold full word
-
     for frame in range(total_frames):
 
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # XO infinite movement
+        # -------- XO PATTERN INFINITE --------
         pattern = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern)
 
@@ -98,7 +100,7 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # -------- SLOW SMOOTH TYPING --------
+        # -------- SMOOTH TYPING --------
         lang_index = (frame // cycle_length) % len(languages)
         text = languages[lang_index]
 
@@ -109,17 +111,17 @@ async def create_welcome_gif(member):
             char_count = int(progress * len(text))
             visible_text = text[:char_count]
         else:
-            visible_text = text  # hold full word
+            visible_text = text
 
         draw.text((60, 60),
                   visible_text,
                   font=font_title,
                   fill=(255, 255, 255))
 
-        # Avatar
+        # -------- AVATAR --------
         img.paste(avatar, (60, 150), avatar)
 
-        # User info
+        # -------- USER INFO --------
         draw.text((180, 150),
                   username,
                   font=font_user,
@@ -135,7 +137,7 @@ async def create_welcome_gif(member):
                   font=font_small,
                   fill=(220, 220, 255))
 
-        # AS logo
+        # -------- AS LOGO --------
         draw.text((60, height - 55),
                   "AS",
                   font=font_logo,
