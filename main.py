@@ -142,7 +142,7 @@ async def create_welcome_gif(member):
         draw = ImageDraw.Draw(img)
 
         # ---- STAGGERED AS STYLE ----
-        letter_spacing = -4   # reduced so S moves closer (left)
+        letter_spacing = -8   # reduced so S moves closer (left)
 
         a_width = draw.textlength("A", font=font_logo)
         s_width = draw.textlength("S", font=font_logo)
