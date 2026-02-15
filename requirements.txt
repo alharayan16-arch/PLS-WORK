@@ -1,3 +1,5 @@
 discord.py
 pillow
 aiohttp
+arabic-reshaper
+python-bidi

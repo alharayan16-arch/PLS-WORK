@@ -5,6 +5,8 @@ import datetime
 import aiohttp
 import io
 import os
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 TOKEN = os.getenv("TOKEN")
 WELCOME_CHANNEL_ID = 1472224372382109905
@@ -25,29 +27,31 @@ async def create_welcome_image(member):
     width, height = 1000, 400
     frames = []
 
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
-    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 35)
+    # FONTS
+    font_title = ImageFont.truetype("NotoSans-Bold.ttf", 70)
+    font_user = ImageFont.truetype("NotoSans-Regular.ttf", 40)
+    font_small = ImageFont.truetype("NotoSans-Regular.ttf", 28)
+    font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 35)
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
+    # Arabic fix
+    arabic_text = get_display(arabic_reshaper.reshape("مرحبًا"))
+
     welcome_texts = [
         "Welcome",
-        "Willkommen",
-        "مرحبًا",
+        arabic_text,
         "स्वागत है",
-        "欢迎"
-        "Bienvenido"
+        "Willkommen",
+        "欢迎",
+        "Benvenuto"
     ]
 
-    # BACKGROUND
-    base_bg = Image.new("RGBA", (width, height), (20, 0, 40, 255))
-
-    gradient_layer = Image.new("RGBA", (width, height))
-    pixels = gradient_layer.load()
+    # --------- DIAGONAL BACKGROUND ----------
+    base_bg = Image.new("RGBA", (width, height))
+    pixels = base_bg.load()
 
     base_color = (110, 0, 200)
     dark_color = (30, 0, 60)
@@ -60,10 +64,9 @@ async def create_welcome_image(member):
             b = int(base_color[2] * (1 - ratio) + dark_color[2] * ratio)
             pixels[x, y] = (r, g, b, 255)
 
-    gradient_layer = gradient_layer.filter(ImageFilter.GaussianBlur(1))
-    base_bg = Image.alpha_composite(base_bg, gradient_layer)
+    base_bg = base_bg.filter(ImageFilter.GaussianBlur(1))
 
-    # AVATAR
+    # --------- DOWNLOAD AVATAR ----------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -77,18 +80,17 @@ async def create_welcome_image(member):
 
     spacing = 60
     pattern_speed = 4
-
-    global_frame = 0  # 🔥 NEVER RESETS
+    global_frame = 0
 
     for welcome_word in welcome_texts:
 
-        # TYPE LETTERS
+        # TYPEWRITER EFFECT
         for i in range(1, len(welcome_word) + 1):
 
             img = base_bg.copy()
             draw = ImageDraw.Draw(img)
 
-            # MOVING PATTERN (continuous)
+            # MOVING X/O PATTERN (continuous)
             pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
             p_draw = ImageDraw.Draw(pattern_layer)
 
@@ -113,23 +115,28 @@ async def create_welcome_image(member):
             # AVATAR
             img.paste(avatar, (60, 150), avatar)
 
-            # TYPING TEXT
+            # TYPE TEXT
             typed_text = welcome_word[:i]
             draw.text((60, 60), typed_text, font=font_title, fill=(255, 255, 255))
 
+            # USER INFO
             draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
             draw.text((200, 200), member_count, font=font_small, fill=(220, 220, 255))
             draw.text((200, 230), join_time, font=font_small, fill=(220, 220, 255))
 
-            draw.text((60, height - 60), "AS", font=font_logo, fill=(255, 255, 255))
+            # AS LOGO
+            draw.text((60, height - 60),
+                      "AS",
+                      font=font_logo,
+                      fill=(255, 255, 255))
 
             frames.append(img)
-            global_frame += 1  # 🔥 THIS MAKES IT CONTINUOUS
+            global_frame += 1
 
-        # PAUSE ON FULL WORD
-        for _ in range(8):
+        # Pause after full word
+        for _ in range(10):
             frames.append(frames[-1])
-            global_frame += 1  # 🔥 STILL CONTINUES MOVING
+            global_frame += 1
 
     gif_path = f"welcome_{member.id}.gif"
 
@@ -161,9 +168,7 @@ async def on_member_join(member):
 @bot.command()
 async def testwelcome(ctx):
     member = ctx.author
-
     gif = await create_welcome_image(member)
-
     await ctx.send(file=discord.File(gif))
 
 
