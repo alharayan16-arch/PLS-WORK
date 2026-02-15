@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -29,9 +28,8 @@ async def create_welcome_gif(member):
     font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
     font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
     font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 45)
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 75)
 
-    # ---- WORKING LANGUAGES ----
     welcomes = [
         "Welcome",
         "Willkommen",
@@ -46,21 +44,21 @@ async def create_welcome_gif(member):
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.now(datetime.UTC).strftime("%H:%M UTC")
 
-    # ---- DARKER DIAGONAL BACKGROUND ----
+    # -------- DARKER DIAGONAL BACKGROUND --------
     base_bg = Image.new("RGB", (width, height))
     bg_draw = ImageDraw.Draw(base_bg)
 
     for y in range(height):
         for x in range(width):
             ratio = (x + y) / (width + height)
-            r = int(85 - ratio * 50)
+            r = int(75 - ratio * 40)
             g = 0
-            b = int(150 - ratio * 90)
+            b = int(135 - ratio * 70)
             bg_draw.point((x, y), fill=(r, g, b))
 
     base_bg = base_bg.convert("RGBA")
 
-    # ---- AVATAR ----
+    # -------- DOWNLOAD AVATAR --------
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -79,42 +77,46 @@ async def create_welcome_gif(member):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # ---- FASTER XO PATTERN (RIGHT → LEFT) ----
+        # -------- XO PATTERN (FASTER, RIGHT → LEFT) --------
         pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
         for y in range(0, height, spacing):
             for x in range(0, width * 2, spacing):
-                p_draw.text((x, y), "X", font=font_logo, fill=(255, 255, 255, 22))
-                p_draw.text((x + 25, y + 25), "O", font=font_logo, fill=(255, 255, 255, 22))
+                p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 22))
+                p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 22))
 
-        # Increased speed here
         offset = (frame * 4) % spacing
         cropped_pattern = pattern_layer.crop((offset, 0, offset + width, height))
         img = Image.alpha_composite(img, cropped_pattern)
 
         draw = ImageDraw.Draw(img)
 
-        # ---- TYPING EFFECT ----
-        full_text = welcomes[(frame // 60) % len(welcomes)]
-
+        # -------- CLEAN LANGUAGE TYPING --------
+        cycle_length = 60
         typing_speed = 6
-        letters_to_show = min(len(full_text), frame // typing_speed)
+
+        lang_index = (frame // cycle_length) % len(welcomes)
+        full_text = welcomes[lang_index]
+
+        frame_in_cycle = frame % cycle_length
+        letters_to_show = min(len(full_text), frame_in_cycle // typing_speed)
+
         welcome_text = full_text[:letters_to_show]
 
         draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
-        # ---- USER INFO ----
+        # -------- USER INFO --------
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
         draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
         draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
 
         img.paste(avatar, (60, 150), avatar)
 
-        # ---- STRIPES (LEFT → RIGHT, START AFTER AS) ----
+        # -------- STRIPES (LEFT → RIGHT, START AFTER AS) --------
         stripe_height = 60
         stripe_y = height - 80
-        as_width_space = 170  # safe space after AS
+        as_safe_zone = 220  # space after AS
 
         stripe_canvas = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         s_draw = ImageDraw.Draw(stripe_canvas)
@@ -123,7 +125,7 @@ async def create_welcome_gif(member):
         stripe_width = 90
 
         for i in range(0, width * 2, stripe_spacing):
-            x = i + as_width_space
+            x = i + as_safe_zone
             s_draw.polygon([
                 (x, stripe_y),
                 (x + stripe_width, stripe_y),
@@ -141,16 +143,17 @@ async def create_welcome_gif(member):
 
         draw = ImageDraw.Draw(img)
 
-        # ---- NEON AS ----
-        as_x = 60
-        as_y = height - 75
+        # -------- NEON AS (TOP RIGHT) --------
+        text_width = draw.textlength("AS", font=font_logo)
+        as_x = width - text_width - 40
+        as_y = 30
 
-        for glow in [12, 7, 3]:
+        for glow in [25, 15, 8]:
             glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
             glow_draw = ImageDraw.Draw(glow_layer)
             glow_draw.text((as_x, as_y), "AS",
                            font=font_logo,
-                           fill=(255, 255, 255, 150))
+                           fill=(255, 255, 255, 170))
             glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow))
             img = Image.alpha_composite(img, glow_layer)
 
