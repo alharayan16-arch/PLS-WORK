@@ -30,21 +30,20 @@ async def create_welcome_image(member):
     font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
     font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 35)
 
-
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
     join_time = datetime.datetime.utcnow().strftime("%H:%M UTC")
 
     welcome_texts = [
         "Welcome",
+        "Willkommen",
         "مرحبًا",
         "स्वागत है",
-        "Willkommen",
-        "欢迎",
-        "Benvenuto"
+        "欢迎"
+        "Bienvenido"
     ]
 
-    # --------- BACKGROUND ----------
+    # BACKGROUND
     base_bg = Image.new("RGBA", (width, height), (20, 0, 40, 255))
 
     gradient_layer = Image.new("RGBA", (width, height))
@@ -64,7 +63,7 @@ async def create_welcome_image(member):
     gradient_layer = gradient_layer.filter(ImageFilter.GaussianBlur(1))
     base_bg = Image.alpha_composite(base_bg, gradient_layer)
 
-    # --------- AVATAR ----------
+    # AVATAR
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
@@ -79,21 +78,21 @@ async def create_welcome_image(member):
     spacing = 60
     pattern_speed = 4
 
-    frame_index = 0
+    global_frame = 0  # 🔥 NEVER RESETS
 
     for welcome_word in welcome_texts:
 
-        # TYPEWRITER EFFECT
+        # TYPE LETTERS
         for i in range(1, len(welcome_word) + 1):
 
             img = base_bg.copy()
             draw = ImageDraw.Draw(img)
 
-            # Moving pattern
+            # MOVING PATTERN (continuous)
             pattern_layer = Image.new("RGBA", (width + spacing, height), (0, 0, 0, 0))
             p_draw = ImageDraw.Draw(pattern_layer)
 
-            offset = frame_index * pattern_speed
+            offset = global_frame * pattern_speed
 
             for y in range(0, height, spacing):
                 for x in range(0, width + spacing, spacing):
@@ -111,28 +110,26 @@ async def create_welcome_image(member):
 
             draw = ImageDraw.Draw(img)
 
-            # Avatar
+            # AVATAR
             img.paste(avatar, (60, 150), avatar)
 
-            # Typed text
+            # TYPING TEXT
             typed_text = welcome_word[:i]
             draw.text((60, 60), typed_text, font=font_title, fill=(255, 255, 255))
 
-            # User info
             draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
             draw.text((200, 200), member_count, font=font_small, fill=(220, 220, 255))
             draw.text((200, 230), join_time, font=font_small, fill=(220, 220, 255))
 
-            # AS logo
             draw.text((60, height - 60), "AS", font=font_logo, fill=(255, 255, 255))
 
             frames.append(img)
-            frame_index += 1
+            global_frame += 1  # 🔥 THIS MAKES IT CONTINUOUS
 
-        # Pause on full word
+        # PAUSE ON FULL WORD
         for _ in range(8):
             frames.append(frames[-1])
-            frame_index += 1
+            global_frame += 1  # 🔥 STILL CONTINUES MOVING
 
     gif_path = f"welcome_{member.id}.gif"
 
