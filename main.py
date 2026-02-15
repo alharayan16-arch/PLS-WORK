@@ -40,7 +40,7 @@ async def create_welcome_gif(member):
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
-    join_time = datetime.datetime.now(datetime.UTC).strftime("%H:%M UTC")
+    join_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
 
     # DARK DIAGONAL BACKGROUND
     base_bg = Image.new("RGB", (width, height))
@@ -145,22 +145,51 @@ async def create_welcome_gif(member):
         img = Image.alpha_composite(img, cropped_stripes)
         draw = ImageDraw.Draw(img)
 
-        # ---- BIGGER AS (MOVED LEFT) ----
-        text_width = draw.textlength("AS", font=font_logo)
-        as_x = width - text_width - 140   # moved left
-        as_y = 20
+        # ---- STAGGERED AS STYLE ----
+        letter_spacing = 10
 
+        a_width = draw.textlength("A", font=font_logo)
+        s_width = draw.textlength("S", font=font_logo)
+
+        as_total_width = a_width + s_width + letter_spacing
+
+        as_x = width - as_total_width - 140
+        as_y = 40
+
+        # Glow layer
         for glow in [45, 30, 15]:
             glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
             glow_draw = ImageDraw.Draw(glow_layer)
-            glow_draw.text((as_x, as_y), "AS",
+
+            glow_draw.text((as_x, as_y - 12), "A",
                            font=font_logo,
                            fill=(255, 255, 255, 220))
+
+            glow_draw.text((as_x + a_width + letter_spacing, as_y),
+                           "S",
+                           font=font_logo,
+                           fill=(255, 255, 255, 220))
+
             glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow))
             img = Image.alpha_composite(img, glow_layer)
 
         draw = ImageDraw.Draw(img)
-        draw.text((as_x, as_y), "AS", font=font_logo, fill=(255, 255, 255))
+
+        # Main letters
+        draw.text((as_x, as_y - 12), "A",
+                  font=font_logo,
+                  fill=(255, 255, 255))
+
+        draw.text((as_x + a_width + letter_spacing, as_y),
+                  "S",
+                  font=font_logo,
+                  fill=(255, 255, 255))
+
+        # LINK
+        draw.text((as_x - 100, as_y + 115),
+                  "https://discord.gg/arabsstudio",
+                  font=font_link,
+                  fill=(255, 255, 255, 160)) 
 
         # LINK MOVED LEFT
         draw.text((as_x - 100, as_y + 115),
