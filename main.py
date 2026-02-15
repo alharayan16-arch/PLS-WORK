@@ -25,10 +25,11 @@ async def create_welcome_image(member):
     width, height = 1000, 400
     frames = []
 
-    font_title = ImageFont.truetype("NotoSans-Bold.ttf", 70)
-    font_user = ImageFont.truetype("NotoSans-Regular.ttf", 40)
-    font_small = ImageFont.truetype("NotoSans-Regular.ttf", 28)
-    font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 35)
+    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
+    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 35)
+
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
