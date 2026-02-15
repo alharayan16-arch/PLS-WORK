@@ -1,6 +1,8 @@
+
+
 import discord
 from discord.ext import commands
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import datetime
 import aiohttp
 import io
@@ -29,7 +31,8 @@ async def create_welcome_gif(member):
     font_title = ImageFont.truetype("NotoSans-Bold.ttf", 65)
     font_user = ImageFont.truetype("NotoSans-Regular.ttf", 38)
     font_small = ImageFont.truetype("NotoSans-Regular.ttf", 26)
-    font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 32)
+    font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 45)
+    moving_font = ImageFont.truetype("NotoSans-Regular.ttf", 28)
 
     username = member.display_name
     member_count = f"Member #{member.guild.member_count}"
@@ -99,10 +102,10 @@ async def create_welcome_gif(member):
         for y in range(0, height, spacing):
             for x in range(0, width + spacing, spacing):
                 p_draw.text((x, y), "X",
-                            font=font_logo,
+                            font=moving_font,
                             fill=(255, 255, 255, 18))
                 p_draw.text((x + 25, y + 25), "O",
-                            font=font_logo,
+                            font=moving_font,
                             fill=(255, 255, 255, 18))
 
         cropped = pattern.crop((offset, 0, offset + width, height))
@@ -147,10 +150,41 @@ async def create_welcome_gif(member):
                   font=font_small,
                   fill=(220, 220, 255))
 
-        # -------- AS LOGO --------
-        draw.text((60, height - 55),
+        # -------- NEON AS --------
+        base_x = 60
+        base_y = height - 70
+
+        # Glow layers
+        for glow_radius in [8, 5, 3]:
+            glow_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            glow_draw = ImageDraw.Draw(glow_layer)
+            glow_draw.text((base_x, base_y),
+                           "AS",
+                           font=font_logo,
+                           fill=(255, 255, 255, 120))
+            glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(glow_radius))
+            img = Image.alpha_composite(img, glow_layer)
+
+        draw = ImageDraw.Draw(img)
+
+        # Main AS text
+        draw.text((base_x, base_y),
                   "AS",
                   font=font_logo,
+                  fill=(255, 255, 255))
+
+        # -------- MOVING STUDIO TEXT --------
+        moving_text = "STUDIO"
+
+        text_width = draw.textlength(moving_text, font=moving_font)
+        move_area = 220
+
+        move_offset = (frame * 3) % (move_area + text_width)
+
+        draw.text((base_x + 100 + move_offset - text_width,
+                   base_y + 15),
+                  moving_text,
+                  font=moving_font,
                   fill=(255, 255, 255))
 
         img = img.convert("P", palette=Image.ADAPTIVE, colors=128)
@@ -189,4 +223,3 @@ async def testwelcome(ctx):
 
 
 bot.run(TOKEN)
-
