@@ -68,11 +68,12 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     spacing = 60
-    total_frames = total_cycle + 30
     typing_speed = 6
 
     cycle_lengths = [len(seq) * typing_speed for seq in sequences]
     total_cycle = sum(cycle_lengths)
+   
+    total_frames = total_cycle + 30
 
     for frame in range(total_frames):
         img = base_bg.copy()
