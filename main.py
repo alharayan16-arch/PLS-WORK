@@ -1,13 +1,13 @@
 import discord
 from discord.ext import commands
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import datetime
 import aiohttp
 import io
 import os
 import random
 import json
 import asyncio
-import datetime
 
 TOKEN = os.getenv("TOKEN")
 
@@ -33,168 +33,153 @@ def save_giveaways(data):
     with open(GIVEAWAY_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
+# ================= TIME FORMAT =================
+
+def format_duration(seconds):
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+
+    parts = []
+
+    if hours > 0:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes > 0:
+        parts.append(f"{minutes} min")
+    if secs > 0:
+        parts.append(f"{secs} sec")
+
+    if not parts:
+        return "0 sec"
+
+    return " ".join(parts)
+
 # ================= READY =================
 
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    print("✅ Slash commands synced.")
     print(f"Logged in as {bot.user}")
 
-# ================= TIME FORMAT =================
-
-def format_duration(seconds):
-    td = str(datetime.timedelta(seconds=seconds))
-    return td
-
-# ================= WELCOME =================
+# ================= YOUR ORIGINAL WELCOME SYSTEM =================
 
 async def create_welcome_gif(member):
     width, height = 1000, 400
     frames = []
 
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 60)
-    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 35)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 25)
+    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
+    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 110)
+    font_link = ImageFont.truetype("Montserrat-Regular.ttf", 24)
 
-    spacing = 60
-    total_frames = 30
+    sequences = [
+        ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"],
+        ["W","WI","WIL","WILL","WILLK","WILLKO","WILLKOM","WILLKOMM","WILLKOMME","WILLKOMMEN"],
+        ["B","BE","BEN","BENV","BENVE","BENVEN","BENVENU","BENVENUT","BENVENUTO"],
+    ]
+
+    username = member.display_name
+    member_count = f"Member #{member.guild.member_count}"
+    join_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
+
+    base_bg = Image.new("RGB", (width, height))
+    bg_draw = ImageDraw.Draw(base_bg)
+
+    for y in range(height):
+        for x in range(width):
+            ratio = (x + y) / (width + height)
+            r = int(55 - ratio * 30)
+            g = 0
+            b = int(105 - ratio * 50)
+            bg_draw.point((x, y), fill=(r, g, b))
+
+    base_bg = base_bg.convert("RGBA")
 
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
             avatar_bytes = await resp.read()
 
     avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-    avatar = avatar.resize((120, 120))
+    avatar = avatar.resize((110, 110))
 
-    mask = Image.new("L", (120, 120), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 120, 120), fill=255)
+    mask = Image.new("L", (110, 110), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
+    spacing = 60
+    typing_speed = 6
+    cycle_lengths = [len(seq) * typing_speed for seq in sequences]
+    total_cycle = sum(cycle_lengths)
+    total_frames = total_cycle + 30
+
     for frame in range(total_frames):
-        img = Image.new("RGBA", (width, height), (30, 30, 30))
+        img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        pattern = Image.new("RGBA", (width*2, height), (0,0,0,0))
-        p_draw = ImageDraw.Draw(pattern)
+        pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
+        p_draw = ImageDraw.Draw(pattern_layer)
 
-        for y in range(0,height,spacing):
-            for x in range(0,width*2,spacing):
-                p_draw.text((x,y),"X",font=font_small,fill=(255,255,255,18))
-                p_draw.text((x+30,y+30),"O",font=font_small,fill=(255,255,255,18))
+        for y in range(0, height, spacing):
+            for x in range(0, width * 2, spacing):
+                p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
+                p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
 
-        offset = (frame*4) % width
-        cropped = pattern.crop((offset,0,offset+width,height))
-        img = Image.alpha_composite(img,cropped)
+        offset = (frame * 4) % spacing
+        cropped_pattern = pattern_layer.crop((offset, 0, offset + width, height))
+        img = Image.alpha_composite(img, cropped_pattern)
         draw = ImageDraw.Draw(img)
 
-        draw.text((80,80),"WELCOME TO ARAB'S STUDIO",font=font_title,fill=(255,255,255))
-        draw.text((250,200),member.display_name,font=font_user,fill=(255,255,255))
-        draw.text((250,250),f"Member #{member.guild.member_count}",font=font_small,fill=(200,200,200))
+        cycle_frame = frame % total_cycle
+        cumulative = 0
 
-        img.paste(avatar,(80,200),avatar)
+        for seq, seq_length in zip(sequences, cycle_lengths):
+            if cycle_frame < cumulative + seq_length:
+                local_frame = cycle_frame - cumulative
+                letter_index = min(len(seq)-1, local_frame // typing_speed)
+                welcome_text = seq[letter_index]
+                break
+            cumulative += seq_length
+
+        draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
+        draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
+        draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
+        draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
+
+        img.paste(avatar, (60, 150), avatar)
         frames.append(img)
 
-    path=f"welcome_{member.id}.gif"
-    frames[0].save(path,save_all=True,append_images=frames[1:],duration=70,loop=0)
-    return path
+    gif_path = f"welcome_{member.id}.gif"
+    frames[0].save(
+        gif_path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=60,
+        loop=0,
+        disposal=2,
+        optimize=True
+    )
+
+    return gif_path
 
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        gif = await create_welcome_gif(member)
-        await channel.send(content=f"{member.mention} welcome 💜", file=discord.File(gif))
+    gif = await create_welcome_gif(member)
+    await channel.send(
+        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
+        file=discord.File(gif)
+    )
+
+@bot.command()
+async def testwelcome(ctx):
+    gif = await create_welcome_gif(ctx.author)
+    await ctx.send(
+        content=f"{ctx.author.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
+        file=discord.File(gif)
+    )
 
 # ================= GIVEAWAY =================
-
-class GiveawayView(discord.ui.View):
-    def __init__(self, giveaway_id):
-        super().__init__(timeout=None)
-        self.giveaway_id = giveaway_id
-
-    @discord.ui.button(label="🎉 Enter Giveaway (0)", style=discord.ButtonStyle.secondary)
-    async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        data = load_giveaways()
-        giveaway = data[self.giveaway_id]
-
-        if interaction.user.id in giveaway["entries"]:
-            await interaction.response.send_message("Already entered.", ephemeral=True)
-            return
-
-        # Requirement check (text only for now)
-        if giveaway["requirements"]:
-            await interaction.response.send_message(
-                f"You must meet requirement: {giveaway['requirements']}",
-                ephemeral=True
-            )
-            return
-
-        giveaway["entries"].append(interaction.user.id)
-        save_giveaways(data)
-
-        button.label = f"🎉 Enter Giveaway ({len(giveaway['entries'])})"
-        await interaction.message.edit(view=self)
-
-        await interaction.response.send_message("Entered successfully.", ephemeral=True)
-
-async def schedule_end(giveaway_id, delay):
-    await asyncio.sleep(delay)
-    await end_giveaway(giveaway_id)
-
-async def end_giveaway(giveaway_id):
-    data = load_giveaways()
-    giveaway = data[giveaway_id]
-    channel = bot.get_channel(giveaway["channel_id"])
-    staff_channel = bot.get_channel(STAFF_LOG_CHANNEL_ID)
-
-    winners = random.sample(
-        giveaway["entries"],
-        min(giveaway["winners"], len(giveaway["entries"]))
-    )
-
-    giveaway["ended"] = True
-    giveaway["last_winners"] = winners
-    save_giveaways(data)
-
-    mentions = []
-
-    for winner_id in winners:
-        member = channel.guild.get_member(winner_id)
-        if member:
-            mentions.append(member.mention)
-            try:
-                await member.send(embed=discord.Embed(
-                    title="🎉 YOU WON!",
-                    description=f"Prize: **{giveaway['prize']}**\nClaim in <#{SUPPORT_CHANNEL_ID}>",
-                    color=GW_COLOR
-                ))
-            except:
-                pass
-
-    public_embed = discord.Embed(
-        title="🎉 GIVEAWAY ENDED",
-        description=(
-            f"🎁 Prize: **{giveaway['prize']}**\n"
-            f"👥 Winners: {giveaway['winners']}\n"
-            f"🥇 Winner(s): {', '.join(mentions)}"
-        ),
-        color=GW_COLOR
-    )
-    await channel.send(embed=public_embed)
-
-    if staff_channel:
-        jump_url = f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{giveaway['message_id']}"
-        staff_embed = discord.Embed(title="🏆 GIVEAWAY ENDED (STAFF)", color=GW_COLOR)
-        staff_embed.add_field(name="Prize", value=giveaway["prize"], inline=False)
-        staff_embed.add_field(name="Winners", value=", ".join(mentions), inline=False)
-        staff_embed.add_field(name="Giveaway ID", value=giveaway_id, inline=False)
-
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="Jump to Giveaway", url=jump_url))
-
-        await staff_channel.send(embed=staff_embed, view=view)
 
 @bot.tree.command(name="giveaway", description="Start a giveaway")
 async def giveaway(interaction: discord.Interaction, duration_seconds: int, winners: int, prize: str, requirements: str = "None"):
@@ -204,81 +189,20 @@ async def giveaway(interaction: discord.Interaction, duration_seconds: int, winn
         return
 
     giveaway_id = str(interaction.id)
-    readable_time = format_duration(duration_seconds)
+    readable = format_duration(duration_seconds)
 
     embed = discord.Embed(
         title="✨ ARAB'S STUDIO GIVEAWAY ✨",
         description=(
             f"🎁 Prize: **{prize}**\n"
             f"👥 Winners: {winners}\n"
-            f"⏳ Duration: {readable_time}\n"
+            f"⏳ Duration: {readable}\n"
             f"📌 Requirements: {requirements}"
         ),
         color=GW_COLOR
     )
 
-    view = GiveawayView(giveaway_id)
-    await interaction.response.send_message(embed=embed, view=view)
-    message = await interaction.original_response()
-
-    data = load_giveaways()
-    data[giveaway_id] = {
-        "channel_id": interaction.channel.id,
-        "message_id": message.id,
-        "prize": prize,
-        "entries": [],
-        "winners": winners,
-        "ended": False,
-        "requirements": requirements
-    }
-    save_giveaways(data)
-
-    bot.loop.create_task(schedule_end(giveaway_id, duration_seconds))
-
-# ================= SERVER STATS WITH GLOW =================
-
-@bot.tree.command(name="serverstats", description="Live server statistics")
-async def serverstats(interaction: discord.Interaction):
-
-    guild = interaction.guild
-    data = load_giveaways()
-    active = sum(1 for g in data.values() if not g.get("ended"))
-
-    width, height = 1000, 500
-    frames = []
-
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 50)
-    font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 30)
-
-    total_frames = 50
-    spacing = 80
-
-    for frame in range(total_frames):
-
-        img = Image.new("RGBA", (width, height), (173,216,230))
-        draw = ImageDraw.Draw(img)
-
-        def glow_bar(x,y,value,max_value,label):
-            bar_width=500
-            percent=min(value/max_value,1)
-            fill=int(bar_width*percent*(frame/total_frames))
-
-            draw.rectangle((x,y,x+bar_width,y+25),fill=(60,60,60))
-            draw.rectangle((x-4,y-4,x+fill+4,y+29),fill=(70,0,150))
-            draw.rectangle((x-2,y-2,x+fill+2,y+27),fill=(110,0,200))
-            draw.rectangle((x,y,x+fill,y+25),fill=(160,60,255))
-            draw.text((x,y-30),f"{label}: {value}",font=font_stat,fill=(0,0,0))
-
-        glow_bar(200,200,guild.member_count,500,"Members")
-        glow_bar(200,260,sum(m.status!=discord.Status.offline for m in guild.members),200,"Online")
-        glow_bar(200,320,guild.premium_subscription_count,50,"Boost Count")
-        glow_bar(200,380,active,10,"Active Giveaways")
-
-        frames.append(img)
-
-    path=f"stats_{guild.id}.gif"
-    frames[0].save(path,save_all=True,append_images=frames[1:],duration=80,loop=0)
-
-    await interaction.response.send_message(file=discord.File(path))
+    await interaction.response.send_message(embed=embed)
 
 bot.run(TOKEN)
+
