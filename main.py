@@ -263,6 +263,81 @@ async def countdown_loop(giveaway_id):
 
         await asyncio.sleep(5)
 
+#================= WINNER SELECTED =================
+
+async def end_giveaway(giveaway_id):
+    data = load_giveaways()
+    giveaway = data[giveaway_id]
+
+    if giveaway["ended"]:
+        return
+
+    giveaway["ended"] = True
+    save_giveaways(data)
+
+    channel = bot.get_channel(giveaway["channel_id"])
+    message = await channel.fetch_message(giveaway["message_id"])
+
+    entries = giveaway["entries"]
+
+    if len(entries) == 0:
+        winners = []
+    else:
+        winners = random.sample(
+            entries,
+            min(giveaway["winners"], len(entries))
+        )
+
+    winner_mentions = "None"
+
+    if winners:
+        winner_mentions = " ".join(f"<@{w}>" for w in winners)
+
+        # DM winners
+        for winner_id in winners:
+            user = await bot.fetch_user(winner_id)
+            try:
+                embed = discord.Embed(
+                    title="🎉 YOU WON!",
+                    color=GW_COLOR
+                )
+                embed.add_field(
+                    name="🏆 Prize",
+                    value=f"**{giveaway['prize']}**",
+                    inline=False
+                )
+                embed.add_field(
+                    name="📩 Claim",
+                    value=f"Create a ticket in <#{SUPPORT_CHANNEL_ID}>",
+                    inline=False
+                )
+                await user.send(embed=embed)
+            except:
+                pass
+
+    # Edit original message
+    embed = discord.Embed(
+        title="🎉 GIVEAWAY ENDED",
+        color=GW_COLOR
+    )
+    embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
+    embed.add_field(name="👥 Entries", value=len(entries), inline=True)
+    embed.add_field(name="🏆 Winner(s)", value=winner_mentions, inline=False)
+
+    await message.edit(embed=embed, view=None)
+
+    # Staff log
+    staff = bot.get_channel(STAFF_LOG_CHANNEL_ID)
+    if staff:
+        log_embed = discord.Embed(
+            title="🏆 Giveaway Ended",
+            color=GW_COLOR
+        )
+        log_embed.add_field(name="Prize", value=giveaway["prize"])
+        log_embed.add_field(name="Winners", value=winner_mentions)
+        await staff.send(embed=log_embed)
+
+
 # ================= REROLL =================
 
 @bot.tree.command(name="reroll", description="Reroll a giveaway")
