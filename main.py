@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
@@ -12,6 +11,7 @@ import asyncio
 
 TOKEN = os.getenv("TOKEN")
 WELCOME_CHANNEL_ID = 1472224372382109905
+STAFF_LOG_CHANNEL_ID = 1473910880264519730  # 🔥 PUT STAFF CHANNEL ID HERE
 GIVEAWAY_FILE = "giveaways.json"
 
 intents = discord.Intents.default()
@@ -154,21 +154,15 @@ class GiveawayView(discord.ui.View):
     def __init__(self, giveaway_id):
         super().__init__(timeout=None)
         self.giveaway_id = giveaway_id
-        self.update_label()
 
-    def update_label(self):
-        data = load_giveaways()
-        entries = len(data[self.giveaway_id]["entries"])
-        self.clear_items()
-        button = discord.ui.Button(
-            label=f"🎉 Enter Giveaway ({entries})",
-            style=discord.ButtonStyle.primary
-        )
-        button.callback = self.enter
-        self.add_item(button)
+    @discord.ui.button(label="🎉 Enter Giveaway (0)", style=discord.ButtonStyle.primary)
+    async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-    async def enter(self, interaction: discord.Interaction):
         data = load_giveaways()
+
+        if self.giveaway_id not in data:
+            await interaction.response.send_message("❌ Giveaway not found.", ephemeral=True)
+            return
 
         if interaction.user.id in data[self.giveaway_id]["entries"]:
             await interaction.response.send_message("❌ You already entered!", ephemeral=True)
@@ -177,7 +171,8 @@ class GiveawayView(discord.ui.View):
         data[self.giveaway_id]["entries"].append(interaction.user.id)
         save_giveaways(data)
 
-        self.update_label()
+        count = len(data[self.giveaway_id]["entries"])
+        button.label = f"🎉 Enter Giveaway ({count})"
         await interaction.message.edit(view=self)
 
         await interaction.response.send_message("✅ You entered!", ephemeral=True)
@@ -193,6 +188,7 @@ async def end_giveaway(giveaway_id):
 
     giveaway = data[giveaway_id]
     channel = bot.get_channel(giveaway["channel_id"])
+    staff_channel = bot.get_channel(STAFF_LOG_CHANNEL_ID)
 
     entries = giveaway["entries"]
     winners_count = giveaway["winners"]
@@ -201,7 +197,28 @@ async def end_giveaway(giveaway_id):
         await channel.send("❌ Giveaway ended. No entries.")
     else:
         winners = random.sample(entries, min(winners_count, len(entries)))
-        mentions = [channel.guild.get_member(w).mention for w in winners]
+        mentions = []
+
+        for winner_id in winners:
+            member = channel.guild.get_member(winner_id)
+            if member:
+                mentions.append(member.mention)
+
+                # 🔥 Styled DM Embed
+                try:
+                    embed = discord.Embed(
+                        title="🎉 YOU WON! 🎉",
+                        description=(
+                            f"🏆 **Prize:** {giveaway['prize']}\n"
+                            f"🏠 **Server:** {channel.guild.name}\n\n"
+                            f"Please contact staff to claim your reward!"
+                        ),
+                        color=discord.Color.from_rgb(120, 0, 200)
+                    )
+                    embed.set_footer(text="Arab’s Studio Giveaway System")
+                    await member.send(embed=embed)
+                except:
+                    pass
 
         await channel.send(
             f"🎉 **GIVEAWAY ENDED!** 🎉\n"
@@ -209,6 +226,15 @@ async def end_giveaway(giveaway_id):
             f"👥 Total Entries: {len(entries)}\n"
             f"🥇 Winner(s): {', '.join(mentions)}"
         )
+
+        # 🔥 Log to staff channel
+        if staff_channel:
+            await staff_channel.send(
+                f"📢 Giveaway Ended\n"
+                f"Prize: {giveaway['prize']}\n"
+                f"Winners: {', '.join(mentions)}\n"
+                f"Entries: {len(entries)}"
+            )
 
     del data[giveaway_id]
     save_giveaways(data)
@@ -223,6 +249,16 @@ async def giveaway(interaction: discord.Interaction, duration: int, winners: int
     end_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=duration)
     giveaway_id = str(int(end_time.timestamp())) + str(interaction.id)
 
+    data = load_giveaways()
+    data[giveaway_id] = {
+        "channel_id": interaction.channel.id,
+        "prize": prize,
+        "winners": winners,
+        "end_time": int(end_time.timestamp()),
+        "entries": []
+    }
+    save_giveaways(data)
+
     embed = discord.Embed(
         title="✨ ARAB’S STUDIO GIVEAWAY ✨",
         description=(
@@ -235,37 +271,7 @@ async def giveaway(interaction: discord.Interaction, duration: int, winners: int
 
     view = GiveawayView(giveaway_id)
     await interaction.response.send_message(embed=embed, view=view)
-    message = await interaction.original_response()
-
-    data = load_giveaways()
-    data[giveaway_id] = {
-        "channel_id": interaction.channel.id,
-        "message_id": message.id,
-        "prize": prize,
-        "winners": winners,
-        "end_time": int(end_time.timestamp()),
-        "entries": []
-    }
-    save_giveaways(data)
 
     bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
-
-@bot.tree.command(name="gstats", description="View giveaway statistics")
-async def gstats(interaction: discord.Interaction):
-
-    data = load_giveaways()
-    total_active = len(data)
-
-    total_entries = sum(len(g["entries"]) for g in data.values())
-
-    embed = discord.Embed(
-        title="📊 Arab’s Studio Giveaway Stats",
-        color=discord.Color.from_rgb(120, 0, 200)
-    )
-
-    embed.add_field(name="Active Giveaways", value=str(total_active), inline=False)
-    embed.add_field(name="Total Entries", value=str(total_entries), inline=False)
-
-    await interaction.response.send_message(embed=embed)
 
 bot.run(TOKEN)
