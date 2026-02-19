@@ -54,32 +54,7 @@ async def on_ready():
                 bot.loop.create_task(schedule_end(giveaway_id, remaining))
 
 # =========================
-# WELCOME SYSTEM
-# =========================
-
-async def create_welcome_gif(member):
-    width, height = 900, 400
-    img = Image.new("RGB", (width, height), (60, 0, 120))
-    draw = ImageDraw.Draw(img)
-
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 60)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 30)
-
-    draw.text((50, 50), "WELCOME", font=font_title, fill=(255, 255, 255))
-    draw.text((50, 150), member.display_name, font=font_small, fill=(255, 255, 255))
-
-    path = f"welcome_{member.id}.png"
-    img.save(path)
-    return path
-
-@bot.event
-async def on_member_join(member):
-    channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    gif = await create_welcome_gif(member)
-    await channel.send(file=discord.File(gif))
-
-# =========================
-# GIVEAWAY SYSTEM
+# GIVEAWAY SYSTEM (UNCHANGED CORE)
 # =========================
 
 class GiveawayView(discord.ui.View):
@@ -113,7 +88,6 @@ async def end_giveaway(giveaway_id):
     data = load_giveaways()
     giveaway = data[giveaway_id]
     channel = bot.get_channel(giveaway["channel_id"])
-    staff_channel = bot.get_channel(STAFF_LOG_CHANNEL_ID)
 
     winners = random.sample(
         giveaway["entries"],
@@ -122,7 +96,6 @@ async def end_giveaway(giveaway_id):
 
     giveaway["last_winners"] = winners
     giveaway["ended"] = True
-    giveaway["rerolls"] = 0
     save_giveaways(data)
 
     mentions = []
@@ -153,11 +126,6 @@ async def end_giveaway(giveaway_id):
     )
 
     await channel.send(embed=embed)
-
-    if staff_channel:
-        await staff_channel.send(
-            f"🏆 Giveaway ended | Winners: {', '.join(mentions)}"
-        )
 
 @bot.tree.command(name="giveaway", description="Start a giveaway")
 async def giveaway(interaction: discord.Interaction, duration: int, winners: int, prize: str):
@@ -191,15 +159,14 @@ async def giveaway(interaction: discord.Interaction, duration: int, winners: int
         "winners": winners,
         "end_time": int(end_time.timestamp()),
         "entries": [],
-        "ended": False,
-        "rerolls": 0
+        "ended": False
     }
     save_giveaways(data)
 
     bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
 
 # =========================
-# SERVER STATS IMAGE CARD
+# SERVER STATS (EVERYONE CAN USE)
 # =========================
 
 @bot.tree.command(name="serverstats", description="View server statistics")
@@ -209,28 +176,36 @@ async def serverstats(interaction: discord.Interaction):
     data = load_giveaways()
     active_giveaways = sum(1 for g in data.values() if not g.get("ended"))
 
-    width, height = 900, 450
-    img = Image.new("RGB", (width, height))
+    width, height = 1000, 500
+    img = Image.new("RGBA", (width, height))
     draw = ImageDraw.Draw(img)
 
+    # Gradient background
     for y in range(height):
         for x in range(width):
             ratio = (x + y) / (width + height)
-            r = int(90 - ratio * 40)
+            r = int(70 - ratio * 30)
             g = 0
-            b = int(150 - ratio * 60)
+            b = int(140 - ratio * 50)
             draw.point((x, y), fill=(r, g, b))
 
     font_title = ImageFont.truetype("Montserrat-Bold.ttf", 55)
     font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 32)
 
-    draw.text((50, 40), "ARAB'S STUDIO STATS", font=font_title, fill=(255, 255, 255))
+    draw.text((60, 40), "ARAB'S STUDIO STATS", font=font_title, fill=(255, 255, 255))
 
-    draw.text((60, 140), f"👥 Members: {guild.member_count}", font=font_stat, fill=(255, 255, 255))
-    draw.text((60, 190), f"🟢 Online: {sum(m.status != discord.Status.offline for m in guild.members)}", font=font_stat, fill=(255, 255, 255))
-    draw.text((60, 240), f"🚀 Boost Level: {guild.premium_tier}", font=font_stat, fill=(255, 255, 255))
-    draw.text((60, 290), f"💎 Boost Count: {guild.premium_subscription_count}", font=font_stat, fill=(255, 255, 255))
-    draw.text((60, 340), f"🎉 Active Giveaways: {active_giveaways}", font=font_stat, fill=(255, 255, 255))
+    draw.text((70, 150), f"👥 Members: {guild.member_count}", font=font_stat, fill=(255, 255, 255))
+    draw.text((70, 200), f"🟢 Online: {sum(m.status != discord.Status.offline for m in guild.members)}", font=font_stat, fill=(255, 255, 255))
+    draw.text((70, 250), f"🚀 Boost Level: {guild.premium_tier}", font=font_stat, fill=(255, 255, 255))
+    draw.text((70, 300), f"💎 Boost Count: {guild.premium_subscription_count}", font=font_stat, fill=(255, 255, 255))
+    draw.text((70, 350), f"🎉 Active Giveaways: {active_giveaways}", font=font_stat, fill=(255, 255, 255))
+
+    # 🔥 AS LOGO WATERMARK
+    if os.path.exists("as_logo.png"):
+        logo = Image.open("as_logo.png").convert("RGBA")
+        logo = logo.resize((200, 200))
+        logo.putalpha(80)  # transparency
+        img.paste(logo, (width - 250, height - 250), logo)
 
     path = f"serverstats_{guild.id}.png"
     img.save(path)
