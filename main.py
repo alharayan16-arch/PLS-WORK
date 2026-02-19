@@ -87,24 +87,68 @@ def generate_background(width, height):
 
 # ================= WELCOME GIF =================
 
-async def create_welcome_gif(member):
+async def create_giveaway_gif(prize):
     width, height = 800, 300
     frames = []
 
-    font = ImageFont.truetype("Montserrat-Bold.ttf", 60)
-    bg = generate_background(width, height)
+    font_big = ImageFont.truetype("Montserrat-Bold.ttf", 70)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+    font_prize = ImageFont.truetype("Montserrat-Regular.ttf", 40)
 
-    sequence = ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"]
+    sequence = ["G","GI","GIV","GIVE","GIVEA","GIVEAW","GIVEAWA","GIVEAWAY"]
 
-    for i in range(len(sequence)*5):
-        img = bg.copy()
+    base_bg = generate_background(width, height)
+
+    spacing = 60
+    typing_speed = 5
+    total_frames = len(sequence) * typing_speed + 20
+
+    for frame in range(total_frames):
+
+        img = base_bg.copy()
+
+        # ===== MOVING X O PATTERN =====
+        pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
+        p_draw = ImageDraw.Draw(pattern_layer)
+
+        for y in range(0, height, spacing):
+            for x in range(0, width * 2, spacing):
+                p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
+                p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
+
+        offset = (frame * 4) % spacing
+        cropped = pattern_layer.crop((offset, 0, offset + width, height))
+        img = Image.alpha_composite(img.convert("RGBA"), cropped)
+
         draw = ImageDraw.Draw(img)
-        text = sequence[min(len(sequence)-1, i//5)]
-        draw.text((50,100), text, font=font, fill=(255,255,255))
-        frames.append(img)
 
-    path = f"welcome_{member.id}.gif"
-    frames[0].save(path, save_all=True, append_images=frames[1:], duration=60, loop=0)
+        # ===== TYPING EFFECT =====
+        text = sequence[min(len(sequence)-1, frame // typing_speed)]
+
+        tw = draw.textlength(text, font=font_big)
+        draw.text(((width - tw) / 2, 60),
+                  text,
+                  font=font_big,
+                  fill=(255,255,255))
+
+        # ===== PRIZE TEXT =====
+        pw = draw.textlength(prize, font=font_prize)
+        draw.text(((width - pw) / 2, 150),
+                  prize,
+                  font=font_prize,
+                  fill=(230,230,255))
+
+        frames.append(img.convert("RGB"))
+
+    path = f"giveaway_{random.randint(1,999999)}.gif"
+    frames[0].save(
+        path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=60,
+        loop=0
+    )
+
     return path
 
 @bot.event
