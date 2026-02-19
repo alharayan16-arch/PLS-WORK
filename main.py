@@ -1,14 +1,18 @@
+
 import discord
 from discord.ext import commands
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 import datetime
 import aiohttp
 import io
 import os
 import random
+import json
+import asyncio
 
 TOKEN = os.getenv("TOKEN")
 WELCOME_CHANNEL_ID = 1472224372382109905
+GIVEAWAY_FILE = "giveaways.json"
 
 intents = discord.Intents.default()
 intents.members = True
@@ -16,12 +20,38 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# =========================
+# GIVEAWAY STORAGE
+# =========================
+
+def load_giveaways():
+    if not os.path.exists(GIVEAWAY_FILE):
+        return {}
+    with open(GIVEAWAY_FILE, "r") as f:
+        return json.load(f)
+
+def save_giveaways(data):
+    with open(GIVEAWAY_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+# =========================
+# READY EVENT
+# =========================
 
 @bot.event
 async def on_ready():
     await bot.tree.sync()
     print(f"Logged in as {bot.user}")
 
+    data = load_giveaways()
+    for giveaway_id, giveaway in data.items():
+        remaining = giveaway["end_time"] - int(datetime.datetime.utcnow().timestamp())
+        if remaining > 0:
+            bot.loop.create_task(schedule_end(giveaway_id, remaining))
+
+# =========================
+# WELCOME SYSTEM (UNCHANGED)
+# =========================
 
 async def create_welcome_gif(member):
     width, height = 1000, 400
@@ -30,8 +60,6 @@ async def create_welcome_gif(member):
     font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
     font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
     font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 110)
-    font_link = ImageFont.truetype("Montserrat-Regular.ttf", 24)
 
     sequences = [
         ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"],
@@ -67,7 +95,6 @@ async def create_welcome_gif(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
-    spacing = 60
     typing_speed = 6
     cycle_lengths = [len(seq) * typing_speed for seq in sequences]
     total_cycle = sum(cycle_lengths)
@@ -75,19 +102,6 @@ async def create_welcome_gif(member):
 
     for frame in range(total_frames):
         img = base_bg.copy()
-        draw = ImageDraw.Draw(img)
-
-        pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
-        p_draw = ImageDraw.Draw(pattern_layer)
-
-        for y in range(0, height, spacing):
-            for x in range(0, width * 2, spacing):
-                p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
-                p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
-
-        offset = (frame * 4) % spacing
-        cropped_pattern = pattern_layer.crop((offset, 0, offset + width, height))
-        img = Image.alpha_composite(img, cropped_pattern)
         draw = ImageDraw.Draw(img)
 
         cycle_frame = frame % total_cycle
@@ -102,7 +116,6 @@ async def create_welcome_gif(member):
             cumulative += seq_length
 
         draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
-
         draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
         draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
         draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
@@ -124,7 +137,6 @@ async def create_welcome_gif(member):
 
     return gif_path
 
-
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
@@ -134,84 +146,126 @@ async def on_member_join(member):
         file=discord.File(gif)
     )
 
-
-@bot.command()
-async def testwelcome(ctx):
-    gif = await create_welcome_gif(ctx.author)
-    await ctx.send(
-        content=f"{ctx.author.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
-        file=discord.File(gif)
-    )
-
-
 # =========================
 # GIVEAWAY SYSTEM
 # =========================
 
 class GiveawayView(discord.ui.View):
-    def __init__(self, duration, prize):
-        super().__init__(timeout=duration)
-        self.entries = set()
-        self.prize = prize
-        self.message = None
+    def __init__(self, giveaway_id):
+        super().__init__(timeout=None)
+        self.giveaway_id = giveaway_id
+        self.update_label()
 
-    @discord.ui.button(label="🎉 Enter Giveaway", style=discord.ButtonStyle.primary)
-    async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id in self.entries:
+    def update_label(self):
+        data = load_giveaways()
+        entries = len(data[self.giveaway_id]["entries"])
+        self.clear_items()
+        button = discord.ui.Button(
+            label=f"🎉 Enter Giveaway ({entries})",
+            style=discord.ButtonStyle.primary
+        )
+        button.callback = self.enter
+        self.add_item(button)
+
+    async def enter(self, interaction: discord.Interaction):
+        data = load_giveaways()
+
+        if interaction.user.id in data[self.giveaway_id]["entries"]:
             await interaction.response.send_message("❌ You already entered!", ephemeral=True)
-        else:
-            self.entries.add(interaction.user.id)
-            await interaction.response.send_message("✅ You entered the giveaway!", ephemeral=True)
-
-    async def on_timeout(self):
-        if not self.message:
             return
 
-        channel = self.message.channel
+        data[self.giveaway_id]["entries"].append(interaction.user.id)
+        save_giveaways(data)
 
-        if len(self.entries) == 0:
-            await channel.send("❌ Giveaway ended. No entries.")
-            return
+        self.update_label()
+        await interaction.message.edit(view=self)
 
-        winner_id = random.choice(list(self.entries))
-        winner = channel.guild.get_member(winner_id)
+        await interaction.response.send_message("✅ You entered!", ephemeral=True)
+
+async def schedule_end(giveaway_id, delay):
+    await asyncio.sleep(delay)
+    await end_giveaway(giveaway_id)
+
+async def end_giveaway(giveaway_id):
+    data = load_giveaways()
+    if giveaway_id not in data:
+        return
+
+    giveaway = data[giveaway_id]
+    channel = bot.get_channel(giveaway["channel_id"])
+
+    entries = giveaway["entries"]
+    winners_count = giveaway["winners"]
+
+    if not entries:
+        await channel.send("❌ Giveaway ended. No entries.")
+    else:
+        winners = random.sample(entries, min(winners_count, len(entries)))
+        mentions = [channel.guild.get_member(w).mention for w in winners]
 
         await channel.send(
             f"🎉 **GIVEAWAY ENDED!** 🎉\n"
-            f"🏆 Prize: **{self.prize}**\n"
-            f"🥇 Winner: {winner.mention}"
+            f"🏆 Prize: **{giveaway['prize']}**\n"
+            f"👥 Total Entries: {len(entries)}\n"
+            f"🥇 Winner(s): {', '.join(mentions)}"
         )
 
+    del data[giveaway_id]
+    save_giveaways(data)
 
 @bot.tree.command(name="giveaway", description="Start a giveaway")
-async def giveaway(interaction: discord.Interaction, duration: int, prize: str):
+async def giveaway(interaction: discord.Interaction, duration: int, winners: int, prize: str):
 
     if not interaction.user.guild_permissions.manage_guild:
-        await interaction.response.send_message(
-            "❌ You need Manage Server permission.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ Need Manage Server permission.", ephemeral=True)
         return
 
-    duration_seconds = duration * 60
-    end_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=duration_seconds)
+    end_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=duration)
+    giveaway_id = str(int(end_time.timestamp())) + str(interaction.id)
 
     embed = discord.Embed(
-        title="🎉 GIVEAWAY 🎉",
+        title="✨ ARAB’S STUDIO GIVEAWAY ✨",
         description=(
-            f"🏆 Prize: **{prize}**\n\n"
-            f"Click the button below to enter!\n\n"
+            f"🎁 **Prize:** {prize}\n"
+            f"👥 **Winners:** {winners}\n\n"
             f"⏰ Ends: <t:{int(end_time.timestamp())}:R>"
         ),
-        color=discord.Color.purple()
+        color=discord.Color.from_rgb(120, 0, 200)
     )
 
-    view = GiveawayView(duration_seconds, prize)
+    view = GiveawayView(giveaway_id)
     await interaction.response.send_message(embed=embed, view=view)
-
     message = await interaction.original_response()
-    view.message = message
 
+    data = load_giveaways()
+    data[giveaway_id] = {
+        "channel_id": interaction.channel.id,
+        "message_id": message.id,
+        "prize": prize,
+        "winners": winners,
+        "end_time": int(end_time.timestamp()),
+        "entries": []
+    }
+    save_giveaways(data)
+
+    bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
+
+@bot.tree.command(name="gstats", description="View giveaway statistics")
+async def gstats(interaction: discord.Interaction):
+
+    data = load_giveaways()
+    total_active = len(data)
+
+    total_entries = sum(len(g["entries"]) for g in data.values())
+
+    embed = discord.Embed(
+        title="📊 Arab’s Studio Giveaway Stats",
+        color=discord.Color.from_rgb(120, 0, 200)
+    )
+
+    embed.add_field(name="Active Giveaways", value=str(total_active), inline=False)
+    embed.add_field(name="Total Entries", value=str(total_entries), inline=False)
+
+    await interaction.response.send_message(embed=embed)
 
 bot.run(TOKEN)
-
