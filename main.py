@@ -215,6 +215,86 @@ async def giveaway(interaction: discord.Interaction, duration: int, winners: int
 
     bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
 
+@bot.tree.command(name="reroll", description="Reroll a giveaway")
+async def reroll(interaction: discord.Interaction, message_id: str):
+
+    if not interaction.user.guild_permissions.manage_guild:
+        await interaction.response.send_message("Need Manage Server permission.", ephemeral=True)
+        return
+
+    data = load_giveaways()
+    staff_channel = bot.get_channel(STAFF_LOG_CHANNEL_ID)
+
+    for giveaway_id, giveaway in data.items():
+        if str(giveaway["message_id"]) == message_id and giveaway["ended"]:
+
+            old_winners = giveaway.get("last_winners", [])
+
+            winners = random.sample(
+                giveaway["entries"],
+                min(giveaway["winners"], len(giveaway["entries"]))
+            )
+
+            giveaway["last_winners"] = winners
+            save_giveaways(data)
+
+            mentions = []
+
+            for w in winners:
+                member = interaction.guild.get_member(w)
+                if member:
+                    mentions.append(member.mention)
+
+                    try:
+                        dm = discord.Embed(
+                            title="🎉 YOU WON (REROLL)!",
+                            description=f"🏆 Prize: **{giveaway['prize']}**\n🎫 Claim in <#{SUPPORT_CHANNEL_ID}>",
+                            color=GW_COLOR
+                        )
+                        await member.send(embed=dm)
+                    except:
+                        pass
+
+            # DM old winners
+            for old in old_winners:
+                if old not in winners:
+                    old_member = interaction.guild.get_member(old)
+                    if old_member:
+                        try:
+                            await old_member.send(
+                                "⚠️ You did not claim your reward in time. The giveaway has been rerolled."
+                            )
+                        except:
+                            pass
+
+            await interaction.response.send_message(
+                f"🔄 New Winner(s): {', '.join(mentions)}"
+            )
+
+            # Staff log
+            if staff_channel:
+                channel = bot.get_channel(giveaway["channel_id"])
+                jump_url = f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{giveaway['message_id']}"
+
+                staff_embed = discord.Embed(
+                    title="🔄 GIVEAWAY REROLLED (STAFF)",
+                    color=GW_COLOR
+                )
+
+                staff_embed.add_field(name="Prize", value=giveaway["prize"], inline=False)
+                staff_embed.add_field(name="New Winners", value=", ".join(mentions), inline=False)
+                staff_embed.add_field(name="Giveaway ID", value=giveaway_id, inline=False)
+                staff_embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+
+                view = discord.ui.View()
+                view.add_item(discord.ui.Button(label="Jump to Giveaway", url=jump_url))
+
+                await staff_channel.send(embed=staff_embed, view=view)
+
+            return
+
+    await interaction.response.send_message("Giveaway not found.", ephemeral=True)
+
 # ================= SERVER STATS (INFINITE + PROGRESS BARS) =================
 
 @bot.tree.command(name="serverstats", description="Live server statistics")
@@ -254,13 +334,27 @@ async def serverstats(interaction: discord.Interaction):
 
         draw.text((120,60),"ARAB'S STUDIO LIVE STATS",font=font_title,fill=(255,255,255))
 
-        def bar(x,y,value,max_value,label):
-            bar_width=500
-            percent=min(value/max_value,1)
-            fill=int(bar_width*percent*(frame/total_frames))
-            draw.rectangle((x,y,x+bar_width,y+25),fill=(70,70,70))
-            draw.rectangle((x,y,x+fill,y+25),fill=(150,80,255))
-            draw.text((x,y-30),f"{label}: {value}",font=font_stat,fill=(255,255,255))
+        def bar(x, y, value, max_value, label):
+    bar_width = 500
+    percent = min(value / max_value, 1)
+    fill = int(bar_width * percent * (frame / total_frames))
+
+    # background
+    draw.rectangle((x, y, x + bar_width, y + 25), fill=(60, 60, 60))
+
+    # glow layers
+    glow_color = (120, 60, 255)
+
+    # outer glow
+    draw.rectangle((x-4, y-4, x + fill + 4, y + 29), fill=(90, 40, 200))
+
+    # inner glow
+    draw.rectangle((x-2, y-2, x + fill + 2, y + 27), fill=(120, 60, 255))
+
+    # main bar
+    draw.rectangle((x, y, x + fill, y + 25), fill=(160, 90, 255))
+
+    draw.text((x, y - 30), f"{label}: {value}", font=font_stat, fill=(255,255,255))
 
         bar(200,180,guild.member_count,500,"Members")
         bar(200,250,sum(m.status!=discord.Status.offline for m in guild.members),200,"Online")
