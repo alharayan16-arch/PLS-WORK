@@ -1,25 +1,25 @@
 import discord
 from discord.ext import commands
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import datetime
+from PIL import Image, ImageDraw, ImageFont
 import aiohttp
+import asyncio
+import datetime
 import io
 import os
 import random
-import asyncio
 import re
 import sqlite3
 
+print("MAIN FILE STARTED")
+
 TOKEN = os.getenv("TOKEN")
 
+if not TOKEN:
+    raise RuntimeError("TOKEN environment variable is missing!")
+
 WELCOME_CHANNEL_ID = 1472224372382109905
-SUPPORT_CHANNEL_ID = 1472228682566340842
-STAFF_LOG_CHANNEL_ID = 1473910880264519730
-
-BOOSTER_ROLE_ID = 1472274201686839450  # +5
-VIP_ROLE_ID = 1473695955869110324      # +2
-
-GW_COLOR = discord.Color(0x5E17EB)
+BOOSTER_ROLE_ID = 1472274201686839450
+VIP_ROLE_ID = 1473695955869110324
 
 intents = discord.Intents.default()
 intents.members = True
@@ -41,8 +41,7 @@ CREATE TABLE IF NOT EXISTS giveaways (
     winners INTEGER,
     prize TEXT,
     required_role INTEGER,
-    ended INTEGER,
-    host_id INTEGER
+    ended INTEGER
 )
 """)
 
@@ -59,13 +58,13 @@ conn.commit()
 
 @bot.event
 async def on_ready():
+    print("BOT LOGGED IN:", bot.user)
     await bot.tree.sync()
     await recover_giveaways()
-    print(f"Logged in as {bot.user}")
 
-# ================= TIME =================
+# ================= UTIL =================
 
-def parse_duration(duration: str):
+def parse_duration(duration):
     pattern = r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?"
     match = re.fullmatch(pattern, duration.lower())
     if not match:
@@ -75,72 +74,33 @@ def parse_duration(duration: str):
     s = int(match.group(3)) if match.group(3) else 0
     return h*3600 + m*60 + s
 
-# ================= SHARED BACKGROUND =================
+# ================= SIMPLE BACKGROUND =================
 
 def generate_background(width, height):
-    bg = Image.new("RGB", (width, height))
-    draw = ImageDraw.Draw(bg)
+    img = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(img)
     for y in range(height):
         for x in range(width):
-            ratio = (x + y) / (width + height)
-            r = int(55 - ratio * 30)
-            g = 0
-            b = int(105 - ratio * 50)
-            draw.point((x, y), fill=(r, g, b))
-    return bg.convert("RGBA")
-
-def add_pattern(img, font_small, frame):
-    width, height = img.size
-    spacing = 60
-    layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
-    p = ImageDraw.Draw(layer)
-
-    for y in range(0, height, spacing):
-        for x in range(0, width * 2, spacing):
-            p.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
-            p.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
-
-    offset = (frame * 4) % spacing
-    cropped = layer.crop((offset, 0, offset + width, height))
-    return Image.alpha_composite(img, cropped)
+            ratio = (x+y)/(width+height)
+            draw.point((x,y), fill=(int(55-ratio*30),0,int(105-ratio*50)))
+    return img
 
 # ================= WELCOME GIF =================
 
 async def create_welcome_gif(member):
-
-    width, height = 1000, 400
+    width, height = 800, 300
     frames = []
 
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
-    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+    font = ImageFont.truetype("Montserrat-Bold.ttf", 60)
+    bg = generate_background(width, height)
 
     sequence = ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"]
 
-    bg = generate_background(width, height)
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(member.display_avatar.url) as resp:
-            avatar_bytes = await resp.read()
-
-    avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-    avatar = avatar.resize((110, 110))
-    mask = Image.new("L", (110, 110), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
-    avatar.putalpha(mask)
-
-    total_frames = len(sequence) * 6 + 20
-
-    for frame in range(total_frames):
+    for i in range(len(sequence)*5):
         img = bg.copy()
-        img = add_pattern(img, font_small, frame)
         draw = ImageDraw.Draw(img)
-
-        text = sequence[min(len(sequence)-1, frame//6)]
-        draw.text((60, 60), text, font=font_title, fill=(255,255,255))
-        draw.text((200, 150), member.display_name, font=font_user, fill=(255,255,255))
-        img.paste(avatar, (60,150), avatar)
-
+        text = sequence[min(len(sequence)-1, i//5)]
+        draw.text((50,100), text, font=font, fill=(255,255,255))
         frames.append(img)
 
     path = f"welcome_{member.id}.gif"
@@ -152,39 +112,28 @@ async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     gif = await create_welcome_gif(member)
     await channel.send(
-        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
+        content=f"{member.mention}, Welcome!",
         file=discord.File(gif)
     )
 
 # ================= GIVEAWAY GIF =================
 
-async def create_giveaway_gif(prize_text):
-
-    width, height = 1000, 400
+async def create_giveaway_gif(prize):
+    width, height = 800, 300
     frames = []
 
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 90)
-    font_prize = ImageFont.truetype("Montserrat-Regular.ttf", 45)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-
-    sequence = ["G","GI","GIV","GIVE","GIVEA","GIVEAW","GIVEAWA","GIVEAWAY"]
+    font_big = ImageFont.truetype("Montserrat-Bold.ttf", 70)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 40)
 
     bg = generate_background(width, height)
-    total_frames = len(sequence) * 6 + 20
+    sequence = ["G","GI","GIV","GIVE","GIVEA","GIVEAW","GIVEAWA","GIVEAWAY"]
 
-    for frame in range(total_frames):
+    for i in range(len(sequence)*5):
         img = bg.copy()
-        img = add_pattern(img, font_small, frame)
         draw = ImageDraw.Draw(img)
-
-        text = sequence[min(len(sequence)-1, frame//6)]
-
-        tw = draw.textlength(text, font=font_title)
-        draw.text(((width-tw)/2, 100), text, font=font_title, fill=(255,255,255))
-
-        pw = draw.textlength(prize_text, font=font_prize)
-        draw.text(((width-pw)/2, 220), prize_text, font=font_prize, fill=(230,230,255))
-
+        text = sequence[min(len(sequence)-1, i//5)]
+        draw.text((200,60), text, font=font_big, fill=(255,255,255))
+        draw.text((200,160), prize, font=font_small, fill=(230,230,255))
         frames.append(img)
 
     path = f"giveaway_{random.randint(1,999999)}.gif"
@@ -202,18 +151,14 @@ class GiveawayView(discord.ui.View):
     async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         c.execute("SELECT required_role, ended FROM giveaways WHERE id=?", (self.gid,))
-        row = c.fetchone()
-        if not row:
-            return
-
-        required_role, ended = row
+        required_role, ended = c.fetchone()
 
         if ended:
-            await interaction.response.send_message("Giveaway ended.", ephemeral=True)
+            await interaction.response.send_message("Ended.", ephemeral=True)
             return
 
         if required_role and required_role not in [r.id for r in interaction.user.roles]:
-            await interaction.response.send_message("You don't meet role requirement.", ephemeral=True)
+            await interaction.response.send_message("Missing required role.", ephemeral=True)
             return
 
         c.execute("SELECT 1 FROM entries WHERE giveaway_id=? AND user_id=?", (self.gid, interaction.user.id))
@@ -221,34 +166,24 @@ class GiveawayView(discord.ui.View):
             await interaction.response.send_message("Already entered.", ephemeral=True)
             return
 
-        entries_to_add = 1
+        entries = 1
         if BOOSTER_ROLE_ID in [r.id for r in interaction.user.roles]:
-            entries_to_add += 5
+            entries += 5
         if VIP_ROLE_ID in [r.id for r in interaction.user.roles]:
-            entries_to_add += 2
+            entries += 2
 
-        for _ in range(entries_to_add):
+        for _ in range(entries):
             c.execute("INSERT INTO entries VALUES (?,?)", (self.gid, interaction.user.id))
         conn.commit()
 
         c.execute("SELECT COUNT(*) FROM entries WHERE giveaway_id=?", (self.gid,))
-        total_entries = c.fetchone()[0]
+        total = c.fetchone()[0]
 
-        message = interaction.message
-        embed = message.embeds[0]
+        embed = interaction.message.embeds[0]
+        embed.set_field_at(4, name="🎟 Entries", value=str(total), inline=True)
+        await interaction.message.edit(embed=embed)
 
-        for i, field in enumerate(embed.fields):
-            if field.name == "🎟 Entries":
-                embed.remove_field(i)
-                break
-
-        embed.add_field(name="🎟 Entries", value=str(total_entries), inline=True)
-        await message.edit(embed=embed, view=self)
-
-        await interaction.response.send_message(
-            f"Entered with {entries_to_add} entries!",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"Entered with {entries} entries!", ephemeral=True)
 
 # ================= GIVEAWAY COMMAND =================
 
@@ -259,16 +194,12 @@ async def giveaway(interaction: discord.Interaction,
                    prize: str,
                    required_role: discord.Role = None):
 
-    if not interaction.user.guild_permissions.manage_guild:
-        await interaction.response.send_message("Need Manage Server.", ephemeral=True)
-        return
-
     seconds = parse_duration(duration)
     if not seconds:
         await interaction.response.send_message("Invalid duration.", ephemeral=True)
         return
 
-    await interaction.response.defer()  # FIXED
+    await interaction.response.defer()
 
     end_time = int(datetime.datetime.utcnow().timestamp()) + seconds
     gid = str(interaction.id)
@@ -276,10 +207,72 @@ async def giveaway(interaction: discord.Interaction,
     gif_path = await create_giveaway_gif(prize)
     file = discord.File(gif_path)
 
-    embed = discord.Embed(title="🎉 ARAB'S STUDIO GIVEAWAY 🎉", color=GW_COLOR)
+    embed = discord.Embed(title="🎉 GIVEAWAY 🎉")
     embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
-    embed.add_field(name="🎁 Prize", value=f"**{prize}**", inline=False)
-    embed.add_field(name="👤 Hosted By", value=interaction.user.mention)
-    embed.add_field(name="👥 Winners", value=winners)
-    embed.add_field(name="⏳ Ends", value=f"<t:{end_time}:R>", inline=False)
-    embed.add_field(name="🎟 Entries", value="0", inline=True)
+    embed.add_field(name="🎁 Prize", value=prize)
+    embed.add_field(name="👥 Winners", value=str(winners))
+    embed.add_field(name="⏳ Ends", value=f"<t:{end_time}:R>")
+    embed.add_field(name="🎟 Entries", value="0")
+
+    view = GiveawayView(gid)
+
+    await interaction.followup.send(embed=embed, view=view, file=file)
+    msg = await interaction.original_response()
+
+    c.execute("""
+    INSERT INTO giveaways VALUES (?,?,?,?,?,?,?,?)
+    """, (
+        gid,
+        msg.id,
+        interaction.channel.id,
+        end_time,
+        winners,
+        prize,
+        required_role.id if required_role else None,
+        0
+    ))
+    conn.commit()
+
+    bot.loop.create_task(countdown(gid))
+
+# ================= COUNTDOWN =================
+
+async def countdown(gid):
+    while True:
+        c.execute("SELECT end_time, ended FROM giveaways WHERE id=?", (gid,))
+        end_time, ended = c.fetchone()
+        if ended:
+            return
+        if end_time - int(datetime.datetime.utcnow().timestamp()) <= 0:
+            await end_giveaway(gid)
+            return
+        await asyncio.sleep(5)
+
+async def end_giveaway(gid):
+    c.execute("SELECT channel_id, message_id, winners, prize FROM giveaways WHERE id=?", (gid,))
+    channel_id, message_id, winner_count, prize = c.fetchone()
+
+    c.execute("UPDATE giveaways SET ended=1 WHERE id=?", (gid,))
+    conn.commit()
+
+    c.execute("SELECT user_id FROM entries WHERE giveaway_id=?", (gid,))
+    entries = [r[0] for r in c.fetchall()]
+
+    winners = random.sample(entries, min(winner_count, len(entries))) if entries else []
+
+    channel = bot.get_channel(channel_id)
+    message = await channel.fetch_message(message_id)
+
+    embed = discord.Embed(title="🎉 GIVEAWAY ENDED")
+    embed.add_field(name="🎁 Prize", value=prize)
+    embed.add_field(name="🏆 Winners", value=" ".join(f"<@{w}>" for w in winners) if winners else "None")
+
+    await message.edit(embed=embed, view=None)
+
+async def recover_giveaways():
+    c.execute("SELECT id FROM giveaways WHERE ended=0")
+    for (gid,) in c.fetchall():
+        bot.loop.create_task(countdown(gid))
+
+bot.run(TOKEN)
+
