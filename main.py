@@ -7,6 +7,7 @@ import os
 import random
 import json
 import asyncio
+import datetime
 
 TOKEN = os.getenv("TOKEN")
 
@@ -40,6 +41,12 @@ async def on_ready():
     print("✅ Slash commands synced.")
     print(f"Logged in as {bot.user}")
 
+# ================= TIME FORMAT =================
+
+def format_duration(seconds):
+    td = str(datetime.timedelta(seconds=seconds))
+    return td
+
 # ================= WELCOME =================
 
 async def create_welcome_gif(member):
@@ -65,7 +72,7 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     for frame in range(total_frames):
-        img = Image.new("RGBA", (width, height), (173, 216, 230))
+        img = Image.new("RGBA", (width, height), (30, 30, 30))
         draw = ImageDraw.Draw(img)
 
         pattern = Image.new("RGBA", (width*2, height), (0,0,0,0))
@@ -116,6 +123,14 @@ class GiveawayView(discord.ui.View):
             await interaction.response.send_message("Already entered.", ephemeral=True)
             return
 
+        # Requirement check (text only for now)
+        if giveaway["requirements"]:
+            await interaction.response.send_message(
+                f"You must meet requirement: {giveaway['requirements']}",
+                ephemeral=True
+            )
+            return
+
         giveaway["entries"].append(interaction.user.id)
         save_giveaways(data)
 
@@ -149,27 +164,28 @@ async def end_giveaway(giveaway_id):
         member = channel.guild.get_member(winner_id)
         if member:
             mentions.append(member.mention)
-
             try:
-                dm = discord.Embed(
+                await member.send(embed=discord.Embed(
                     title="🎉 YOU WON!",
-                    description=f"🏆 Prize: **{giveaway['prize']}**\n🎫 Claim in <#{SUPPORT_CHANNEL_ID}>",
+                    description=f"Prize: **{giveaway['prize']}**\nClaim in <#{SUPPORT_CHANNEL_ID}>",
                     color=GW_COLOR
-                )
-                await member.send(embed=dm)
+                ))
             except:
                 pass
 
-    embed = discord.Embed(
+    public_embed = discord.Embed(
         title="🎉 GIVEAWAY ENDED",
-        description=f"🎁 Prize: **{giveaway['prize']}**\n🥇 Winner(s): {', '.join(mentions)}",
+        description=(
+            f"🎁 Prize: **{giveaway['prize']}**\n"
+            f"👥 Winners: {giveaway['winners']}\n"
+            f"🥇 Winner(s): {', '.join(mentions)}"
+        ),
         color=GW_COLOR
     )
-    await channel.send(embed=embed)
+    await channel.send(embed=public_embed)
 
     if staff_channel:
         jump_url = f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{giveaway['message_id']}"
-
         staff_embed = discord.Embed(title="🏆 GIVEAWAY ENDED (STAFF)", color=GW_COLOR)
         staff_embed.add_field(name="Prize", value=giveaway["prize"], inline=False)
         staff_embed.add_field(name="Winners", value=", ".join(mentions), inline=False)
@@ -180,20 +196,24 @@ async def end_giveaway(giveaway_id):
 
         await staff_channel.send(embed=staff_embed, view=view)
 
-# ================= GIVEAWAY COMMAND =================
-
 @bot.tree.command(name="giveaway", description="Start a giveaway")
-async def giveaway(interaction: discord.Interaction, duration: int, winners: int, prize: str):
+async def giveaway(interaction: discord.Interaction, duration_seconds: int, winners: int, prize: str, requirements: str = "None"):
 
     if not interaction.user.guild_permissions.manage_guild:
         await interaction.response.send_message("Need Manage Server permission.", ephemeral=True)
         return
 
     giveaway_id = str(interaction.id)
+    readable_time = format_duration(duration_seconds)
 
     embed = discord.Embed(
         title="✨ ARAB'S STUDIO GIVEAWAY ✨",
-        description=f"🎁 Prize: **{prize}**\n👥 Winners: {winners}\n⏰ Ends in {duration} minutes",
+        description=(
+            f"🎁 Prize: **{prize}**\n"
+            f"👥 Winners: {winners}\n"
+            f"⏳ Duration: {readable_time}\n"
+            f"📌 Requirements: {requirements}"
+        ),
         color=GW_COLOR
     )
 
@@ -208,79 +228,12 @@ async def giveaway(interaction: discord.Interaction, duration: int, winners: int
         "prize": prize,
         "entries": [],
         "winners": winners,
-        "ended": False
+        "ended": False,
+        "requirements": requirements
     }
     save_giveaways(data)
 
-    bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
-
-# ================= REROLL =================
-
-@bot.tree.command(name="reroll", description="Reroll a giveaway")
-async def reroll(interaction: discord.Interaction, message_id: str):
-
-    if not interaction.user.guild_permissions.manage_guild:
-        await interaction.response.send_message("Need Manage Server permission.", ephemeral=True)
-        return
-
-    data = load_giveaways()
-    staff_channel = bot.get_channel(STAFF_LOG_CHANNEL_ID)
-
-    for giveaway_id, giveaway in data.items():
-        if str(giveaway["message_id"]) == message_id and giveaway["ended"]:
-
-            old_winners = giveaway.get("last_winners", [])
-
-            winners = random.sample(
-                giveaway["entries"],
-                min(giveaway["winners"], len(giveaway["entries"]))
-            )
-
-            giveaway["last_winners"] = winners
-            save_giveaways(data)
-
-            mentions = []
-
-            for w in winners:
-                member = interaction.guild.get_member(w)
-                if member:
-                    mentions.append(member.mention)
-
-                    try:
-                        dm = discord.Embed(
-                            title="🎉 YOU WON (REROLL)!",
-                            description=f"🏆 Prize: **{giveaway['prize']}**\n🎫 Claim in <#{SUPPORT_CHANNEL_ID}>",
-                            color=GW_COLOR
-                        )
-                        await member.send(embed=dm)
-                    except:
-                        pass
-
-            for old in old_winners:
-                if old not in winners:
-                    old_member = interaction.guild.get_member(old)
-                    if old_member:
-                        try:
-                            await old_member.send(
-                                "⚠️ You did not claim your reward in time. The giveaway has been rerolled."
-                            )
-                        except:
-                            pass
-
-            await interaction.response.send_message(f"🔄 New Winner(s): {', '.join(mentions)}")
-
-            if staff_channel:
-                staff_embed = discord.Embed(title="🔄 GIVEAWAY REROLLED (STAFF)", color=GW_COLOR)
-                staff_embed.add_field(name="Prize", value=giveaway["prize"], inline=False)
-                staff_embed.add_field(name="New Winners", value=", ".join(mentions), inline=False)
-                staff_embed.add_field(name="Giveaway ID", value=giveaway_id, inline=False)
-                staff_embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
-
-                await staff_channel.send(embed=staff_embed)
-
-            return
-
-    await interaction.response.send_message("Giveaway not found.", ephemeral=True)
+    bot.loop.create_task(schedule_end(giveaway_id, duration_seconds))
 
 # ================= SERVER STATS WITH GLOW =================
 
@@ -302,38 +255,24 @@ async def serverstats(interaction: discord.Interaction):
 
     for frame in range(total_frames):
 
-        img = Image.new("RGBA", (width, height), (30,30,30))
+        img = Image.new("RGBA", (width, height), (173,216,230))
         draw = ImageDraw.Draw(img)
-
-        pattern = Image.new("RGBA", (width*2,height),(0,0,0,0))
-        p_draw = ImageDraw.Draw(pattern)
-
-        for y in range(0,height,spacing):
-            for x in range(0,width*2,spacing):
-                p_draw.text((x,y),"X",font=font_stat,fill=(255,255,255,10))
-                p_draw.text((x+35,y+35),"O",font=font_stat,fill=(255,255,255,10))
-
-        offset=(frame*2)%width
-        cropped=pattern.crop((offset,0,offset+width,height))
-        img=Image.alpha_composite(img,cropped)
-        draw=ImageDraw.Draw(img)
-
-        draw.text((120,60),"ARAB'S STUDIO LIVE STATS",font=font_title,fill=(255,255,255))
 
         def glow_bar(x,y,value,max_value,label):
             bar_width=500
             percent=min(value/max_value,1)
             fill=int(bar_width*percent*(frame/total_frames))
 
-            draw.rectangle((x-4,y-4,x+fill+4,y+29),fill=(70, 0, 150))      # outer glow
-            draw.rectangle((x-2,y-2,x+fill+2,y+27),fill=(110, 0, 200))    # inner glow
-            draw.rectangle((x,y,x+fill,y+25),fill=(160, 60, 255))         # main bar
-            draw.text((x,y-30),f"{label}: {value}",font=font_stat,fill=(255,255,255))
+            draw.rectangle((x,y,x+bar_width,y+25),fill=(60,60,60))
+            draw.rectangle((x-4,y-4,x+fill+4,y+29),fill=(70,0,150))
+            draw.rectangle((x-2,y-2,x+fill+2,y+27),fill=(110,0,200))
+            draw.rectangle((x,y,x+fill,y+25),fill=(160,60,255))
+            draw.text((x,y-30),f"{label}: {value}",font=font_stat,fill=(0,0,0))
 
-        glow_bar(200,180,guild.member_count,500,"Members")
-        glow_bar(200,250,sum(m.status!=discord.Status.offline for m in guild.members),200,"Online")
+        glow_bar(200,200,guild.member_count,500,"Members")
+        glow_bar(200,260,sum(m.status!=discord.Status.offline for m in guild.members),200,"Online")
         glow_bar(200,320,guild.premium_subscription_count,50,"Boost Count")
-        glow_bar(200,390,active,10,"Active Giveaways")
+        glow_bar(200,380,active,10,"Active Giveaways")
 
         frames.append(img)
 
@@ -343,4 +282,3 @@ async def serverstats(interaction: discord.Interaction):
     await interaction.response.send_message(file=discord.File(path))
 
 bot.run(TOKEN)
-
