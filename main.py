@@ -405,17 +405,21 @@ async def reroll(interaction: discord.Interaction, message_id: str):
                     pass
 
             # Edit giveaway message
-            winner_mentions = " ".join(f"<@{w}>" for w in new_winners)
+           winner_mentions = " ".join(f"<@{w}>" for w in new_winners)
 
-            embed = discord.Embed(
-                title="🎉 GIVEAWAY REROLLED",
-                color=GW_COLOR
-            )
-            embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
-            embed.add_field(name="👥 Entries", value=len(giveaway["entries"]), inline=True)
-            embed.add_field(name="🏆 New Winner(s)", value=winner_mentions, inline=False)
+           embed = discord.Embed(
+              title="🎉 GIVEAWAY ENDED",
+              color=GW_COLOR
+          )
 
-            await message.edit(embed=embed, view=None)
+          embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
+          embed.add_field(name="👥 Entries", value=len(giveaway["entries"]), inline=True)
+          embed.add_field(name="🏆 Winner(s)", value=winner_mentions, inline=False)
+
+          embed.set_footer(text="🔄 This giveaway has been rerolled.")
+
+           await message.edit(embed=embed)
+
 
             # Staff log
             staff = bot.get_channel(STAFF_LOG_CHANNEL_ID)
