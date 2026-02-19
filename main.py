@@ -40,15 +40,15 @@ async def on_ready():
     print("✅ Slash commands synced.")
     print(f"Logged in as {bot.user}")
 
-# ================= WELCOME SYSTEM =================
+# ================= WELCOME =================
 
 async def create_welcome_gif(member):
     width, height = 1000, 400
     frames = []
 
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
-    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
-    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 60)
+    font_user = ImageFont.truetype("Montserrat-Regular.ttf", 35)
+    font_small = ImageFont.truetype("Montserrat-Regular.ttf", 25)
 
     spacing = 60
     total_frames = 30
@@ -65,33 +65,31 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     for frame in range(total_frames):
-
         img = Image.new("RGBA", (width, height), (30, 30, 30))
         draw = ImageDraw.Draw(img)
 
-        pattern = Image.new("RGBA", (width * 2, height), (0,0,0,0))
+        pattern = Image.new("RGBA", (width*2, height), (0,0,0,0))
         p_draw = ImageDraw.Draw(pattern)
 
-        for y in range(0, height, spacing):
-            for x in range(0, width * 2, spacing):
-                p_draw.text((x, y), "X", font=font_small, fill=(255,255,255,20))
-                p_draw.text((x+30, y+30), "O", font=font_small, fill=(255,255,255,20))
+        for y in range(0,height,spacing):
+            for x in range(0,width*2,spacing):
+                p_draw.text((x,y),"X",font=font_small,fill=(255,255,255,18))
+                p_draw.text((x+30,y+30),"O",font=font_small,fill=(255,255,255,18))
 
-        offset = (frame * 4) % width
-        cropped = pattern.crop((offset, 0, offset + width, height))
-        img = Image.alpha_composite(img, cropped)
+        offset = (frame*4) % width
+        cropped = pattern.crop((offset,0,offset+width,height))
+        img = Image.alpha_composite(img,cropped)
         draw = ImageDraw.Draw(img)
 
-        draw.text((80, 80), "WELCOME TO ARAB'S STUDIO", font=font_title, fill=(255,255,255))
-        draw.text((250, 200), member.display_name, font=font_user, fill=(255,255,255))
-        draw.text((250, 250), f"Member #{member.guild.member_count}", font=font_small, fill=(200,200,200))
+        draw.text((80,80),"WELCOME TO ARAB'S STUDIO",font=font_title,fill=(255,255,255))
+        draw.text((250,200),member.display_name,font=font_user,fill=(255,255,255))
+        draw.text((250,250),f"Member #{member.guild.member_count}",font=font_small,fill=(200,200,200))
 
-        img.paste(avatar, (80, 200), avatar)
-
+        img.paste(avatar,(80,200),avatar)
         frames.append(img)
 
-    path = f"welcome_{member.id}.gif"
-    frames[0].save(path, save_all=True, append_images=frames[1:], duration=70, loop=0)
+    path=f"welcome_{member.id}.gif"
+    frames[0].save(path,save_all=True,append_images=frames[1:],duration=70,loop=0)
     return path
 
 @bot.event
@@ -101,7 +99,7 @@ async def on_member_join(member):
         gif = await create_welcome_gif(member)
         await channel.send(content=f"{member.mention} welcome 💜", file=discord.File(gif))
 
-# ================= GIVEAWAY SYSTEM =================
+# ================= GIVEAWAY =================
 
 class GiveawayView(discord.ui.View):
     def __init__(self, giveaway_id):
@@ -164,24 +162,25 @@ async def end_giveaway(giveaway_id):
 
     embed = discord.Embed(
         title="🎉 GIVEAWAY ENDED",
-        description=(
-            f"🎁 Prize: **{giveaway['prize']}**\n"
-            f"👥 Entries: {len(giveaway['entries'])}\n"
-            f"🥇 Winner(s): {', '.join(mentions)}"
-        ),
+        description=f"🎁 Prize: **{giveaway['prize']}**\n🥇 Winner(s): {', '.join(mentions)}",
         color=GW_COLOR
     )
     await channel.send(embed=embed)
 
     if staff_channel:
         jump_url = f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{giveaway['message_id']}"
+
         staff_embed = discord.Embed(title="🏆 GIVEAWAY ENDED (STAFF)", color=GW_COLOR)
         staff_embed.add_field(name="Prize", value=giveaway["prize"], inline=False)
         staff_embed.add_field(name="Winners", value=", ".join(mentions), inline=False)
         staff_embed.add_field(name="Giveaway ID", value=giveaway_id, inline=False)
+
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Jump to Giveaway", url=jump_url))
+
         await staff_channel.send(embed=staff_embed, view=view)
+
+# ================= GIVEAWAY COMMAND =================
 
 @bot.tree.command(name="giveaway", description="Start a giveaway")
 async def giveaway(interaction: discord.Interaction, duration: int, winners: int, prize: str):
@@ -214,6 +213,8 @@ async def giveaway(interaction: discord.Interaction, duration: int, winners: int
     save_giveaways(data)
 
     bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
+
+# ================= REROLL =================
 
 @bot.tree.command(name="reroll", description="Reroll a giveaway")
 async def reroll(interaction: discord.Interaction, message_id: str):
@@ -255,7 +256,6 @@ async def reroll(interaction: discord.Interaction, message_id: str):
                     except:
                         pass
 
-            # DM old winners
             for old in old_winners:
                 if old not in winners:
                     old_member = interaction.guild.get_member(old)
@@ -267,35 +267,22 @@ async def reroll(interaction: discord.Interaction, message_id: str):
                         except:
                             pass
 
-            await interaction.response.send_message(
-                f"🔄 New Winner(s): {', '.join(mentions)}"
-            )
+            await interaction.response.send_message(f"🔄 New Winner(s): {', '.join(mentions)}")
 
-            # Staff log
             if staff_channel:
-                channel = bot.get_channel(giveaway["channel_id"])
-                jump_url = f"https://discord.com/channels/{channel.guild.id}/{channel.id}/{giveaway['message_id']}"
-
-                staff_embed = discord.Embed(
-                    title="🔄 GIVEAWAY REROLLED (STAFF)",
-                    color=GW_COLOR
-                )
-
+                staff_embed = discord.Embed(title="🔄 GIVEAWAY REROLLED (STAFF)", color=GW_COLOR)
                 staff_embed.add_field(name="Prize", value=giveaway["prize"], inline=False)
                 staff_embed.add_field(name="New Winners", value=", ".join(mentions), inline=False)
                 staff_embed.add_field(name="Giveaway ID", value=giveaway_id, inline=False)
                 staff_embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
 
-                view = discord.ui.View()
-                view.add_item(discord.ui.Button(label="Jump to Giveaway", url=jump_url))
-
-                await staff_channel.send(embed=staff_embed, view=view)
+                await staff_channel.send(embed=staff_embed)
 
             return
 
     await interaction.response.send_message("Giveaway not found.", ephemeral=True)
 
-# ================= SERVER STATS (INFINITE + PROGRESS BARS) =================
+# ================= SERVER STATS WITH GLOW =================
 
 @bot.tree.command(name="serverstats", description="Live server statistics")
 async def serverstats(interaction: discord.Interaction):
@@ -318,48 +305,36 @@ async def serverstats(interaction: discord.Interaction):
         img = Image.new("RGBA", (width, height), (30,30,30))
         draw = ImageDraw.Draw(img)
 
-        # moving XO background
-        pattern = Image.new("RGBA", (width*2, height), (0,0,0,0))
+        pattern = Image.new("RGBA", (width*2,height),(0,0,0,0))
         p_draw = ImageDraw.Draw(pattern)
 
         for y in range(0,height,spacing):
             for x in range(0,width*2,spacing):
-                p_draw.text((x,y),"X",font=font_stat,fill=(255,255,255,12))
-                p_draw.text((x+35,y+35),"O",font=font_stat,fill=(255,255,255,12))
+                p_draw.text((x,y),"X",font=font_stat,fill=(255,255,255,10))
+                p_draw.text((x+35,y+35),"O",font=font_stat,fill=(255,255,255,10))
 
-        offset = (frame*2) % width
-        cropped = pattern.crop((offset,0,offset+width,height))
-        img = Image.alpha_composite(img,cropped)
-        draw = ImageDraw.Draw(img)
+        offset=(frame*2)%width
+        cropped=pattern.crop((offset,0,offset+width,height))
+        img=Image.alpha_composite(img,cropped)
+        draw=ImageDraw.Draw(img)
 
         draw.text((120,60),"ARAB'S STUDIO LIVE STATS",font=font_title,fill=(255,255,255))
 
-        def bar(x, y, value, max_value, label):
-    bar_width = 500
-    percent = min(value / max_value, 1)
-    fill = int(bar_width * percent * (frame / total_frames))
+        def glow_bar(x,y,value,max_value,label):
+            bar_width=500
+            percent=min(value/max_value,1)
+            fill=int(bar_width*percent*(frame/total_frames))
 
-    # background
-    draw.rectangle((x, y, x + bar_width, y + 25), fill=(60, 60, 60))
+            draw.rectangle((x,y,x+bar_width,y+25),fill=(60,60,60))
+            draw.rectangle((x-4,y-4,x+fill+4,y+29),fill=(90,40,200))
+            draw.rectangle((x-2,y-2,x+fill+2,y+27),fill=(120,60,255))
+            draw.rectangle((x,y,x+fill,y+25),fill=(170,100,255))
+            draw.text((x,y-30),f"{label}: {value}",font=font_stat,fill=(255,255,255))
 
-    # glow layers
-    glow_color = (120, 60, 255)
-
-    # outer glow
-    draw.rectangle((x-4, y-4, x + fill + 4, y + 29), fill=(90, 40, 200))
-
-    # inner glow
-    draw.rectangle((x-2, y-2, x + fill + 2, y + 27), fill=(120, 60, 255))
-
-    # main bar
-    draw.rectangle((x, y, x + fill, y + 25), fill=(160, 90, 255))
-
-    draw.text((x, y - 30), f"{label}: {value}", font=font_stat, fill=(255,255,255))
-
-        bar(200,180,guild.member_count,500,"Members")
-        bar(200,250,sum(m.status!=discord.Status.offline for m in guild.members),200,"Online")
-        bar(200,320,guild.premium_subscription_count,50,"Boost Count")
-        bar(200,390,active,10,"Active Giveaways")
+        glow_bar(200,180,guild.member_count,500,"Members")
+        glow_bar(200,250,sum(m.status!=discord.Status.offline for m in guild.members),200,"Online")
+        glow_bar(200,320,guild.premium_subscription_count,50,"Boost Count")
+        glow_bar(200,390,active,10,"Active Giveaways")
 
         frames.append(img)
 
@@ -369,3 +344,4 @@ async def serverstats(interaction: discord.Interaction):
     await interaction.response.send_message(file=discord.File(path))
 
 bot.run(TOKEN)
+
