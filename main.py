@@ -9,12 +9,7 @@ import asyncio
 
 TOKEN = os.getenv("TOKEN")
 
-# 🔥 PUT YOUR REAL SERVER ID HERE
-GUILD_ID = 1469948820115951638  # CHANGE THIS
-
-WELCOME_CHANNEL_ID = 1472224372382109905
 SUPPORT_CHANNEL_ID = 1472228682566340842
-
 GIVEAWAY_FILE = "giveaways.json"
 
 intents = discord.Intents.all()
@@ -32,13 +27,12 @@ def save_giveaways(data):
     with open(GIVEAWAY_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# ================= CLEAN SYNC =================
+# ================= READY =================
 
 @bot.event
 async def on_ready():
-    bot.tree.clear_commands(guild=discord.Object(id=GUILD_ID))
-    await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-    print("✅ Clean slash sync complete.")
+    await bot.tree.sync()
+    print("✅ Slash commands synced globally.")
     print(f"Logged in as {bot.user}")
 
 # ================= GIVEAWAY =================
@@ -83,7 +77,6 @@ async def end_giveaway(giveaway_id):
     winner = channel.guild.get_member(winner_id)
 
     giveaway["ended"] = True
-    giveaway["last_winner"] = winner_id
     save_giveaways(data)
 
     embed = discord.Embed(
@@ -99,7 +92,7 @@ async def end_giveaway(giveaway_id):
 
     await channel.send(embed=embed)
 
-@bot.tree.command(name="giveaway", description="Start a giveaway", guild=discord.Object(id=GUILD_ID))
+@bot.tree.command(name="giveaway", description="Start a giveaway")
 async def giveaway(interaction: discord.Interaction, duration: int, prize: str):
 
     if not interaction.user.guild_permissions.manage_guild:
@@ -107,7 +100,6 @@ async def giveaway(interaction: discord.Interaction, duration: int, prize: str):
         return
 
     giveaway_id = str(interaction.id)
-    end_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=duration)
 
     embed = discord.Embed(
         title="✨ ARAB'S STUDIO GIVEAWAY ✨",
@@ -131,9 +123,7 @@ async def giveaway(interaction: discord.Interaction, duration: int, prize: str):
 
     bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
 
-# ================= REROLL =================
-
-@bot.tree.command(name="reroll", description="Reroll giveaway", guild=discord.Object(id=GUILD_ID))
+@bot.tree.command(name="reroll", description="Reroll giveaway")
 async def reroll(interaction: discord.Interaction, message_id: str):
 
     if not interaction.user.guild_permissions.manage_guild:
@@ -144,52 +134,49 @@ async def reroll(interaction: discord.Interaction, message_id: str):
 
     for giveaway in data.values():
         if str(giveaway["message_id"]) == message_id and giveaway["ended"]:
-
             winner_id = random.choice(giveaway["entries"])
             winner = interaction.guild.get_member(winner_id)
-
             await interaction.response.send_message(f"🔄 New Winner: {winner.mention}")
             return
 
     await interaction.response.send_message("Giveaway not found.", ephemeral=True)
 
-# ================= PREMIUM SERVER STATS =================
+# ================= CLEAN PREMIUM SERVER STATS =================
 
-@bot.tree.command(name="serverstats", description="View server stats", guild=discord.Object(id=GUILD_ID))
+@bot.tree.command(name="serverstats", description="View server statistics")
 async def serverstats(interaction: discord.Interaction):
 
     guild = interaction.guild
     data = load_giveaways()
     active = sum(1 for g in data.values() if not g.get("ended"))
 
-    width, height = 1100, 600
-    img = Image.new("RGBA", (width, height), (30, 0, 70))
+    width, height = 1000, 550
+    img = Image.new("RGBA", (width, height), (35, 0, 80))
     draw = ImageDraw.Draw(img)
 
-    # Glass blur overlay
-    overlay = Image.new("RGBA", (width-200, height-200), (255,255,255,30))
-    overlay = overlay.filter(ImageFilter.GaussianBlur(5))
-    img.paste(overlay, (100,100), overlay)
+    # soft panel
+    panel = Image.new("RGBA", (800, 400), (255, 255, 255, 30))
+    panel = panel.filter(ImageFilter.GaussianBlur(4))
+    img.paste(panel, (100, 75), panel)
 
-    # Huge watermark
     if os.path.exists("as_logo.png"):
         logo = Image.open("as_logo.png").convert("RGBA")
-        logo = logo.resize((700,700))
+        logo = logo.resize((600, 600))
         alpha = logo.split()[3]
         alpha = alpha.point(lambda p: p * 0.15)
         logo.putalpha(alpha)
-        img.paste(logo, (200,-50), logo)
+        img.paste(logo, (200, -50), logo)
 
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 60)
-    font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 40)
+    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 55)
+    font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 38)
 
-    draw.text((150, 140), "ARAB'S STUDIO STATS", font=font_title, fill=(255,255,255))
+    draw.text((160, 120), "ARAB'S STUDIO STATS", font=font_title, fill=(255, 255, 255))
 
-    draw.text((180, 260), f"Members: {guild.member_count}", font=font_stat, fill=(255,255,255))
-    draw.text((180, 320), f"Online: {sum(m.status != discord.Status.offline for m in guild.members)}", font=font_stat, fill=(255,255,255))
-    draw.text((180, 380), f"Boost Level: {guild.premium_tier}", font=font_stat, fill=(255,255,255))
-    draw.text((180, 440), f"Boost Count: {guild.premium_subscription_count}", font=font_stat, fill=(255,255,255))
-    draw.text((180, 500), f"Active Giveaways: {active}", font=font_stat, fill=(255,255,255))
+    draw.text((180, 240), f"Members: {guild.member_count}", font=font_stat, fill=(255,255,255))
+    draw.text((180, 300), f"Online: {sum(m.status != discord.Status.offline for m in guild.members)}", font=font_stat, fill=(255,255,255))
+    draw.text((180, 360), f"Boost Level: {guild.premium_tier}", font=font_stat, fill=(255,255,255))
+    draw.text((180, 420), f"Boost Count: {guild.premium_subscription_count}", font=font_stat, fill=(255,255,255))
+    draw.text((180, 480), f"Active Giveaways: {active}", font=font_stat, fill=(255,255,255))
 
     path = f"stats_{guild.id}.png"
     img.save(path)
