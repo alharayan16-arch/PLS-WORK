@@ -75,32 +75,33 @@ def parse_duration(duration: str):
     s = int(match.group(3)) if match.group(3) else 0
     return h*3600 + m*60 + s
 
-# ================= SHARED ANIMATION BASE =================
+# ================= SHARED BACKGROUND =================
 
-def generate_base_background(width, height):
-    base_bg = Image.new("RGB", (width, height))
-    bg_draw = ImageDraw.Draw(base_bg)
+def generate_background(width, height):
+    bg = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(bg)
     for y in range(height):
         for x in range(width):
             ratio = (x + y) / (width + height)
             r = int(55 - ratio * 30)
             g = 0
             b = int(105 - ratio * 50)
-            bg_draw.point((x, y), fill=(r, g, b))
-    return base_bg.convert("RGBA")
+            draw.point((x, y), fill=(r, g, b))
+    return bg.convert("RGBA")
 
-def add_pattern(img, font_small, frame, spacing=60):
+def add_pattern(img, font_small, frame):
     width, height = img.size
-    pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
-    p_draw = ImageDraw.Draw(pattern_layer)
+    spacing = 60
+    layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
+    p = ImageDraw.Draw(layer)
 
     for y in range(0, height, spacing):
         for x in range(0, width * 2, spacing):
-            p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
-            p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
+            p.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
+            p.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
 
     offset = (frame * 4) % spacing
-    cropped = pattern_layer.crop((offset, 0, offset + width, height))
+    cropped = layer.crop((offset, 0, offset + width, height))
     return Image.alpha_composite(img, cropped)
 
 # ================= WELCOME GIF =================
@@ -116,7 +117,7 @@ async def create_welcome_gif(member):
 
     sequence = ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"]
 
-    base_bg = generate_base_background(width, height)
+    bg = generate_background(width, height)
 
     async with aiohttp.ClientSession() as session:
         async with session.get(member.display_avatar.url) as resp:
@@ -131,17 +132,14 @@ async def create_welcome_gif(member):
     total_frames = len(sequence) * 6 + 20
 
     for frame in range(total_frames):
-        img = base_bg.copy()
+        img = bg.copy()
         img = add_pattern(img, font_small, frame)
         draw = ImageDraw.Draw(img)
 
-        index = min(len(sequence)-1, frame // 6)
-        title_text = sequence[index]
-
-        draw.text((60, 60), title_text, font=font_title, fill=(255,255,255))
+        text = sequence[min(len(sequence)-1, frame//6)]
+        draw.text((60, 60), text, font=font_title, fill=(255,255,255))
         draw.text((200, 150), member.display_name, font=font_user, fill=(255,255,255))
-
-        img.paste(avatar, (60, 150), avatar)
+        img.paste(avatar, (60,150), avatar)
 
         frames.append(img)
 
@@ -171,22 +169,21 @@ async def create_giveaway_gif(prize_text):
 
     sequence = ["G","GI","GIV","GIVE","GIVEA","GIVEAW","GIVEAWA","GIVEAWAY"]
 
-    base_bg = generate_base_background(width, height)
+    bg = generate_background(width, height)
     total_frames = len(sequence) * 6 + 20
 
     for frame in range(total_frames):
-        img = base_bg.copy()
+        img = bg.copy()
         img = add_pattern(img, font_small, frame)
         draw = ImageDraw.Draw(img)
 
-        index = min(len(sequence)-1, frame // 6)
-        title_text = sequence[index]
+        text = sequence[min(len(sequence)-1, frame//6)]
 
-        title_w = draw.textlength(title_text, font=font_title)
-        draw.text(((width-title_w)/2, 100), title_text, font=font_title, fill=(255,255,255))
+        tw = draw.textlength(text, font=font_title)
+        draw.text(((width-tw)/2, 100), text, font=font_title, fill=(255,255,255))
 
-        prize_w = draw.textlength(prize_text, font=font_prize)
-        draw.text(((width-prize_w)/2, 220), prize_text, font=font_prize, fill=(230,230,255))
+        pw = draw.textlength(prize_text, font=font_prize)
+        draw.text(((width-pw)/2, 220), prize_text, font=font_prize, fill=(230,230,255))
 
         frames.append(img)
 
@@ -234,7 +231,6 @@ class GiveawayView(discord.ui.View):
             c.execute("INSERT INTO entries VALUES (?,?)", (self.gid, interaction.user.id))
         conn.commit()
 
-        # Live update embed entry count
         c.execute("SELECT COUNT(*) FROM entries WHERE giveaway_id=?", (self.gid,))
         total_entries = c.fetchone()[0]
 
@@ -254,12 +250,6 @@ class GiveawayView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="⏹ End Now", style=discord.ButtonStyle.danger)
-    async def end_now(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.user.guild_permissions.manage_guild:
-            return
-        await end_giveaway(self.gid)
-
 # ================= GIVEAWAY COMMAND =================
 
 @bot.tree.command(name="giveaway")
@@ -278,111 +268,18 @@ async def giveaway(interaction: discord.Interaction,
         await interaction.response.send_message("Invalid duration.", ephemeral=True)
         return
 
+    await interaction.response.defer()  # FIXED
+
     end_time = int(datetime.datetime.utcnow().timestamp()) + seconds
     gid = str(interaction.id)
 
     gif_path = await create_giveaway_gif(prize)
     file = discord.File(gif_path)
-    
+
     embed = discord.Embed(title="🎉 ARAB'S STUDIO GIVEAWAY 🎉", color=GW_COLOR)
     embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
     embed.add_field(name="🎁 Prize", value=f"**{prize}**", inline=False)
     embed.add_field(name="👤 Hosted By", value=interaction.user.mention)
     embed.add_field(name="👥 Winners", value=winners)
     embed.add_field(name="⏳ Ends", value=f"<t:{end_time}:R>", inline=False)
-    embed.add_field(name="🎟 Entries", value="0", inline=True)
-
-    if required_role:
-        embed.add_field(name="📌 Required Role", value=required_role.mention, inline=False)
-
-    view = GiveawayView(gid)
-
-    await interaction.response.send_message(embed=embed, view=view, file=file)
-    msg = await interaction.original_response()
-
-    c.execute("""
-    INSERT INTO giveaways VALUES (?,?,?,?,?,?,?,?,?)
-    """, (
-        gid,
-        msg.id,
-        interaction.channel.id,
-        end_time,
-        winners,
-        prize,
-        required_role.id if required_role else None,
-        0,
-        interaction.user.id
-    ))
-    conn.commit()
-
-    bot.loop.create_task(countdown(gid))
-
-# ================= COUNTDOWN =================
-
-async def countdown(gid):
-    while True:
-        c.execute("SELECT end_time, ended FROM giveaways WHERE id=?", (gid,))
-        row = c.fetchone()
-        if not row:
-            return
-        end_time, ended = row
-        if ended:
-            return
-        if end_time - int(datetime.datetime.utcnow().timestamp()) <= 0:
-            await end_giveaway(gid)
-            return
-        await asyncio.sleep(5)
-
-# ================= END GIVEAWAY =================
-
-async def end_giveaway(gid):
-    c.execute("SELECT channel_id, message_id, winners, prize FROM giveaways WHERE id=?", (gid,))
-    row = c.fetchone()
-    if not row:
-        return
-
-    channel_id, message_id, winner_count, prize = row
-    c.execute("UPDATE giveaways SET ended=1 WHERE id=?", (gid,))
-    conn.commit()
-
-    c.execute("SELECT user_id FROM entries WHERE giveaway_id=?", (gid,))
-    entries = [r[0] for r in c.fetchall()]
-    winners = random.sample(entries, min(winner_count, len(entries))) if entries else []
-
-    channel = bot.get_channel(channel_id)
-    message = await channel.fetch_message(message_id)
-
-    mentions = " ".join(f"<@{w}>" for w in winners) if winners else "None"
-
-    embed = discord.Embed(title="🎉 GIVEAWAY ENDED", color=GW_COLOR)
-    embed.add_field(name="🎁 Prize", value=prize, inline=False)
-    embed.add_field(name="🏆 Winners", value=mentions, inline=False)
-    embed.add_field(name="👥 Entries", value=len(entries))
-
-    await message.edit(embed=embed, view=None)
-
-# ================= STATS =================
-
-@bot.tree.command(name="gstats")
-async def gstats(interaction: discord.Interaction):
-    c.execute("SELECT COUNT(*) FROM giveaways")
-    total = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM entries")
-    total_entries = c.fetchone()[0]
-
-    embed = discord.Embed(title="📊 Giveaway Stats", color=GW_COLOR)
-    embed.add_field(name="Total Giveaways", value=total)
-    embed.add_field(name="Total Entries", value=total_entries)
-
-    await interaction.response.send_message(embed=embed)
-
-# ================= RECOVERY =================
-
-async def recover_giveaways():
-    c.execute("SELECT id FROM giveaways WHERE ended=0")
-    for (gid,) in c.fetchall():
-        bot.loop.create_task(countdown(gid))
-
-# ================= RUN =================
-
-bot.run(TOKEN)
+    embed.add_field(name="🎟 Entries", value="0", inline=T_
