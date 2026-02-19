@@ -94,6 +94,7 @@ async def create_giveaway_gif(prize):
     font_big = ImageFont.truetype("Montserrat-Bold.ttf", 70)
     font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
     font_prize = ImageFont.truetype("Montserrat-Regular.ttf", 40)
+    font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 90)
 
     sequence = ["G","GI","GIV","GIVE","GIVEA","GIVEAW","GIVEAWA","GIVEAWAY"]
 
@@ -101,7 +102,7 @@ async def create_giveaway_gif(prize):
 
     spacing = 60
     typing_speed = 5
-    total_frames = len(sequence) * typing_speed + 20
+    total_frames = len(sequence) * typing_speed + 30
 
     for frame in range(total_frames):
 
@@ -113,8 +114,8 @@ async def create_giveaway_gif(prize):
 
         for y in range(0, height, spacing):
             for x in range(0, width * 2, spacing):
-                p_draw.text((x, y), "X", font=font_small, fill=(255, 255, 255, 50))
-                p_draw.text((x + 25, y + 25), "O", font=font_small, fill=(255, 255, 255, 50))
+                p_draw.text((x, y), "X", font=font_small, fill=(255,255,255,50))
+                p_draw.text((x+25, y+25), "O", font=font_small, fill=(255,255,255,50))
 
         offset = (frame * 4) % spacing
         cropped = pattern_layer.crop((offset, 0, offset + width, height))
@@ -122,21 +123,78 @@ async def create_giveaway_gif(prize):
 
         draw = ImageDraw.Draw(img)
 
-        # ===== TYPING EFFECT =====
+        # ===== TYPING =====
         text = sequence[min(len(sequence)-1, frame // typing_speed)]
 
         tw = draw.textlength(text, font=font_big)
-        draw.text(((width - tw) / 2, 60),
-                  text,
-                  font=font_big,
-                  fill=(255,255,255))
+        text_x = (width - tw) / 2
+        text_y = 50
 
-        # ===== PRIZE TEXT =====
+        draw.text((text_x, text_y), text, font=font_big, fill=(255,255,255))
+
+        # ===== SHINE SWEEP =====
+        shine_layer = Image.new("RGBA", img.size, (0,0,0,0))
+        shine_draw = ImageDraw.Draw(shine_layer)
+
+        shine_x = (frame * 20) % (width + 200) - 200
+        shine_draw.rectangle(
+            [shine_x, text_y-10, shine_x+80, text_y+90],
+            fill=(255,255,255,60)
+        )
+
+        img = Image.alpha_composite(img, shine_layer)
+
+        draw = ImageDraw.Draw(img)
+
+        # ===== PRIZE =====
         pw = draw.textlength(prize, font=font_prize)
-        draw.text(((width - pw) / 2, 150),
+        draw.text(((width-pw)/2, 150),
                   prize,
                   font=font_prize,
                   fill=(230,230,255))
+
+        # ===== GLOWING AS LOGO =====
+        as_x = width - 130
+        as_y = 20
+
+        for blur in [20,10,5]:
+            glow = Image.new("RGBA", img.size, (0,0,0,0))
+            g_draw = ImageDraw.Draw(glow)
+            g_draw.text((as_x, as_y), "AS",
+                        font=font_logo,
+                        fill=(255,255,255,200))
+            glow = glow.filter(ImageFilter.GaussianBlur(blur))
+            img = Image.alpha_composite(img, glow)
+
+        draw = ImageDraw.Draw(img)
+        draw.text((as_x, as_y),
+                  "AS",
+                  font=font_logo,
+                  fill=(255,255,255))
+
+        # ===== ANIMATED BOTTOM STRIPE =====
+        stripe_layer = Image.new("RGBA", (width * 2, height), (0,0,0,0))
+        s_draw = ImageDraw.Draw(stripe_layer)
+
+        stripe_y = height - 50
+        stripe_spacing = 150
+        stripe_width = 70
+
+        for i in range(0, width * 2, stripe_spacing):
+            s_draw.polygon([
+                (i, stripe_y),
+                (i + stripe_width, stripe_y),
+                (i + stripe_width - 20, stripe_y + 40),
+                (i - 20, stripe_y + 40)
+            ], fill=(255,255,255,200))
+
+        stripe_offset = (frame * 6) % stripe_spacing
+        stripe_crop = stripe_layer.crop(
+            (stripe_spacing - stripe_offset, 0,
+             stripe_spacing - stripe_offset + width, height)
+        )
+
+        img = Image.alpha_composite(img, stripe_crop)
 
         frames.append(img.convert("RGB"))
 
@@ -307,16 +365,21 @@ async def end_giveaway(gid):
     channel = bot.get_channel(channel_id)
     message = await channel.fetch_message(message_id)
 
-    embed = discord.Embed(title="🎉 GIVEAWAY ENDED")
-    embed.add_field(name="🎁 Prize", value=prize)
-    embed.add_field(name="🏆 Winners", value=" ".join(f"<@{w}>" for w in winners) if winners else "None")
+    mentions = " ".join(f"<@{w}>" for w in winners) if winners else "None"
+
+    embed = discord.Embed(
+        title="🎉 GIVEAWAY ENDED 🎉",
+        description="🎊 Congratulations! 🎊",
+        color=discord.Color.gold()
+    )
+
+    embed.add_field(name="🎁 Prize", value=prize, inline=False)
+    embed.add_field(name="🏆 Winners", value=mentions, inline=False)
 
     await message.edit(embed=embed, view=None)
 
-async def recover_giveaways():
-    c.execute("SELECT id FROM giveaways WHERE ended=0")
-    for (gid,) in c.fetchall():
-        bot.loop.create_task(countdown(gid))
+    # CONFETTI MESSAGE
+    await channel.send("🎉 🎊 🎉 🎊 🎉 🎊 🎉 🎊 🎉")
 
 bot.run(TOKEN)
 
