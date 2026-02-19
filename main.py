@@ -11,6 +11,9 @@ import asyncio
 
 TOKEN = os.getenv("TOKEN")
 
+# 🔥 PUT YOUR SERVER ID HERE
+GUILD_ID = 1469948820115951638  # <-- CHANGE THIS
+
 WELCOME_CHANNEL_ID = 1472224372382109905
 STAFF_LOG_CHANNEL_ID = 1473910880264519730
 SUPPORT_CHANNEL_ID = 1472228682566340842
@@ -38,23 +41,17 @@ def save_giveaways(data):
         json.dump(data, f, indent=4)
 
 # =========================
-# READY
+# FORCE GUILD SYNC (INSTANT COMMANDS)
 # =========================
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
+    print(f"✅ Synced commands in guild {GUILD_ID}")
     print(f"Logged in as {bot.user}")
 
-    data = load_giveaways()
-    for giveaway_id, giveaway in data.items():
-        if not giveaway.get("ended"):
-            remaining = giveaway["end_time"] - int(datetime.datetime.utcnow().timestamp())
-            if remaining > 0:
-                bot.loop.create_task(schedule_end(giveaway_id, remaining))
-
 # =========================
-# GIVEAWAY SYSTEM (UNCHANGED CORE)
+# GIVEAWAY SYSTEM
 # =========================
 
 class GiveawayView(discord.ui.View):
@@ -127,7 +124,7 @@ async def end_giveaway(giveaway_id):
 
     await channel.send(embed=embed)
 
-@bot.tree.command(name="giveaway", description="Start a giveaway")
+@bot.tree.command(name="giveaway", description="Start a giveaway", guild=discord.Object(id=GUILD_ID))
 async def giveaway(interaction: discord.Interaction, duration: int, winners: int, prize: str):
 
     if not interaction.user.guild_permissions.manage_guild:
@@ -165,47 +162,48 @@ async def giveaway(interaction: discord.Interaction, duration: int, winners: int
 
     bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
 
-# =========================
-# SERVER STATS (EVERYONE CAN USE)
-# =========================
-
-@bot.tree.command(name="serverstats", description="View server statistics")
+@bot.tree.command(name="serverstats", description="View server statistics", guild=discord.Object(id=GUILD_ID))
 async def serverstats(interaction: discord.Interaction):
 
     guild = interaction.guild
     data = load_giveaways()
     active_giveaways = sum(1 for g in data.values() if not g.get("ended"))
 
-    width, height = 1000, 500
+    width, height = 1100, 550
     img = Image.new("RGBA", (width, height))
     draw = ImageDraw.Draw(img)
 
-    # Gradient background
     for y in range(height):
         for x in range(width):
             ratio = (x + y) / (width + height)
-            r = int(70 - ratio * 30)
+            r = int(60 - ratio * 20)
             g = 0
             b = int(140 - ratio * 50)
             draw.point((x, y), fill=(r, g, b))
 
-    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 55)
-    font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 32)
-
-    draw.text((60, 40), "ARAB'S STUDIO STATS", font=font_title, fill=(255, 255, 255))
-
-    draw.text((70, 150), f"👥 Members: {guild.member_count}", font=font_stat, fill=(255, 255, 255))
-    draw.text((70, 200), f"🟢 Online: {sum(m.status != discord.Status.offline for m in guild.members)}", font=font_stat, fill=(255, 255, 255))
-    draw.text((70, 250), f"🚀 Boost Level: {guild.premium_tier}", font=font_stat, fill=(255, 255, 255))
-    draw.text((70, 300), f"💎 Boost Count: {guild.premium_subscription_count}", font=font_stat, fill=(255, 255, 255))
-    draw.text((70, 350), f"🎉 Active Giveaways: {active_giveaways}", font=font_stat, fill=(255, 255, 255))
-
-    # 🔥 AS LOGO WATERMARK
     if os.path.exists("as_logo.png"):
         logo = Image.open("as_logo.png").convert("RGBA")
-        logo = logo.resize((200, 200))
-        logo.putalpha(80)  # transparency
-        img.paste(logo, (width - 250, height - 250), logo)
+        logo_width = 700
+        ratio = logo_width / logo.width
+        logo_height = int(logo.height * ratio)
+        logo = logo.resize((logo_width, logo_height))
+
+        alpha = logo.split()[3]
+        alpha = alpha.point(lambda p: p * 0.25)
+        logo.putalpha(alpha)
+
+        pos = ((width - logo_width) // 2, (height - logo_height) // 2)
+        img.paste(logo, pos, logo)
+
+    font_title = ImageFont.truetype("Montserrat-Bold.ttf", 60)
+    font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 35)
+
+    draw.text((80, 60), "ARAB'S STUDIO SERVER STATS", font=font_title, fill=(255, 255, 255))
+    draw.text((100, 200), f"👥 Members: {guild.member_count}", font=font_stat, fill=(255, 255, 255))
+    draw.text((100, 260), f"🟢 Online: {sum(m.status != discord.Status.offline for m in guild.members)}", font=font_stat, fill=(255, 255, 255))
+    draw.text((100, 320), f"🚀 Boost Level: {guild.premium_tier}", font=font_stat, fill=(255, 255, 255))
+    draw.text((100, 380), f"💎 Boost Count: {guild.premium_subscription_count}", font=font_stat, fill=(255, 255, 255))
+    draw.text((100, 440), f"🎉 Active Giveaways: {active_giveaways}", font=font_stat, fill=(255, 255, 255))
 
     path = f"serverstats_{guild.id}.png"
     img.save(path)
@@ -213,3 +211,4 @@ async def serverstats(interaction: discord.Interaction):
     await interaction.response.send_message(file=discord.File(path))
 
 bot.run(TOKEN)
+
