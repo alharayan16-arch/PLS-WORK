@@ -10,9 +10,11 @@ import json
 import asyncio
 
 TOKEN = os.getenv("TOKEN")
+
 WELCOME_CHANNEL_ID = 1472224372382109905
 STAFF_LOG_CHANNEL_ID = 1473910880264519730
 SUPPORT_CHANNEL_ID = 1472228682566340842
+
 GIVEAWAY_FILE = "giveaways.json"
 
 intents = discord.Intents.default()
@@ -52,7 +54,7 @@ async def on_ready():
                 bot.loop.create_task(schedule_end(giveaway_id, remaining))
 
 # =========================
-# WELCOME (UNCHANGED)
+# WELCOME SYSTEM (UNCHANGED)
 # =========================
 
 async def create_welcome_gif(member):
@@ -97,45 +99,14 @@ async def create_welcome_gif(member):
     ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
     avatar.putalpha(mask)
 
-    typing_speed = 6
-    cycle_lengths = [len(seq) * typing_speed for seq in sequences]
-    total_cycle = sum(cycle_lengths)
-    total_frames = total_cycle + 30
-
-    for frame in range(total_frames):
-        img = base_bg.copy()
-        draw = ImageDraw.Draw(img)
-
-        cycle_frame = frame % total_cycle
-        cumulative = 0
-
-        for seq, seq_length in zip(sequences, cycle_lengths):
-            if cycle_frame < cumulative + seq_length:
-                local_frame = cycle_frame - cumulative
-                letter_index = min(len(seq)-1, local_frame // typing_speed)
-                welcome_text = seq[letter_index]
-                break
-            cumulative += seq_length
-
-        draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
-        draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
-        draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
-        draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
-        img.paste(avatar, (60, 150), avatar)
-
-        frames.append(img)
+    draw = ImageDraw.Draw(base_bg)
+    draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
+    draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
+    draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
+    base_bg.paste(avatar, (60, 150), avatar)
 
     gif_path = f"welcome_{member.id}.gif"
-
-    frames[0].save(
-        gif_path,
-        save_all=True,
-        append_images=frames[1:],
-        duration=60,
-        loop=0,
-        disposal=2,
-        optimize=True
-    )
+    base_bg.save(gif_path)
 
     return gif_path
 
@@ -144,7 +115,7 @@ async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     gif = await create_welcome_gif(member)
     await channel.send(
-        content=f"{member.mention}, Welcome to Arab’s Studio — we’re glad to have you here!",
+        content=f"{member.mention}, Welcome to Arab’s Studio!",
         file=discord.File(gif)
     )
 
@@ -161,16 +132,16 @@ class GiveawayView(discord.ui.View):
     async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         data = load_giveaways()
+        giveaway = data[self.giveaway_id]
 
-        if interaction.user.id in data[self.giveaway_id]["entries"]:
+        if interaction.user.id in giveaway["entries"]:
             await interaction.response.send_message("❌ You already entered!", ephemeral=True)
             return
 
-        data[self.giveaway_id]["entries"].append(interaction.user.id)
+        giveaway["entries"].append(interaction.user.id)
         save_giveaways(data)
 
-        count = len(data[self.giveaway_id]["entries"])
-        button.label = f"🎉 Enter Giveaway ({count})"
+        button.label = f"🎉 Enter Giveaway ({len(giveaway['entries'])})"
         await interaction.message.edit(view=self)
 
         await interaction.response.send_message("✅ You entered!", ephemeral=True)
@@ -185,10 +156,7 @@ async def end_giveaway(giveaway_id):
     channel = bot.get_channel(giveaway["channel_id"])
     staff_channel = bot.get_channel(STAFF_LOG_CHANNEL_ID)
 
-    entries = giveaway["entries"]
-    winners_count = giveaway["winners"]
-
-    winners = random.sample(entries, min(winners_count, len(entries)))
+    winners = random.sample(giveaway["entries"], min(giveaway["winners"], len(giveaway["entries"])))
     giveaway["last_winners"] = winners
     giveaway["ended"] = True
     giveaway["rerolls"] = 0
@@ -200,15 +168,11 @@ async def end_giveaway(giveaway_id):
         member = channel.guild.get_member(winner_id)
         if member:
             mentions.append(member.mention)
-
             try:
                 embed = discord.Embed(
                     title="🎉 YOU WON! 🎉",
-                    description=(
-                        f"🏆 **Prize:** {giveaway['prize']}\n\n"
-                        f"🎫 Claim in <#{SUPPORT_CHANNEL_ID}>"
-                    ),
-                    color=discord.Color.from_rgb(120, 0, 200)
+                    description=f"🏆 **Prize:** {giveaway['prize']}\n\n🎫 Claim in <#{SUPPORT_CHANNEL_ID}>",
+                    color=discord.Color.purple()
                 )
                 await member.send(embed=embed)
             except:
@@ -218,17 +182,56 @@ async def end_giveaway(giveaway_id):
         title="🎉 GIVEAWAY ENDED! 🎉",
         description=(
             f"🏆 **Prize:** {giveaway['prize']}\n"
-            f"👥 **Total Entries:** {len(entries)}\n"
+            f"👥 **Total Entries:** {len(giveaway['entries'])}\n"
             f"🥇 **Winner(s):** {', '.join(mentions)}\n\n"
-            f"🎫 To claim your prize, create a ticket in <#{SUPPORT_CHANNEL_ID}>"
+            f"🎫 Create a ticket in <#{SUPPORT_CHANNEL_ID}>"
         ),
-        color=discord.Color.from_rgb(120, 0, 200)
+        color=discord.Color.purple()
     )
 
     await channel.send(embed=embed)
 
     if staff_channel:
         await staff_channel.send(f"🏆 Giveaway ended | Winners: {', '.join(mentions)}")
+
+@bot.tree.command(name="giveaway", description="Start a giveaway")
+async def giveaway(interaction: discord.Interaction, duration: int, winners: int, prize: str):
+
+    if not interaction.user.guild_permissions.manage_guild:
+        await interaction.response.send_message("❌ Need Manage Server permission.", ephemeral=True)
+        return
+
+    end_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=duration)
+    giveaway_id = str(interaction.id)
+
+    embed = discord.Embed(
+        title="✨ ARAB’S STUDIO GIVEAWAY ✨",
+        description=(
+            f"🎁 **Prize:** {prize}\n"
+            f"👥 **Winners:** {winners}\n\n"
+            f"⏰ Ends: <t:{int(end_time.timestamp())}:R>"
+        ),
+        color=discord.Color.purple()
+    )
+
+    view = GiveawayView(giveaway_id)
+    await interaction.response.send_message(embed=embed, view=view)
+    message = await interaction.original_response()
+
+    data = load_giveaways()
+    data[giveaway_id] = {
+        "channel_id": interaction.channel.id,
+        "message_id": message.id,
+        "prize": prize,
+        "winners": winners,
+        "end_time": int(end_time.timestamp()),
+        "entries": [],
+        "ended": False,
+        "rerolls": 0
+    }
+    save_giveaways(data)
+
+    bot.loop.create_task(schedule_end(giveaway_id, duration * 60))
 
 @bot.tree.command(name="reroll", description="Reroll a giveaway")
 async def reroll(interaction: discord.Interaction, message_id: str):
@@ -240,54 +243,40 @@ async def reroll(interaction: discord.Interaction, message_id: str):
     data = load_giveaways()
 
     for giveaway_id, giveaway in data.items():
-        if giveaway.get("ended"):
+        if str(giveaway["message_id"]) == message_id and giveaway["ended"]:
 
-            previous_winners = giveaway.get("last_winners", [])
-            entries = giveaway["entries"]
+            old_winners = giveaway["last_winners"]
+            new_winner = random.choice(giveaway["entries"])
+            member = interaction.guild.get_member(new_winner)
 
-            new_winner_id = random.choice(entries)
-            member = interaction.guild.get_member(new_winner_id)
-
-            # DM previous winners
-            for old_id in previous_winners:
+            for old_id in old_winners:
                 old_member = interaction.guild.get_member(old_id)
                 if old_member:
                     try:
-                        await old_member.send(
-                            "⚠️ Unfortunately, you did not claim your giveaway reward in time. "
-                            "The prize has been rerolled."
-                        )
+                        await old_member.send("⚠️ You did not claim your reward in time. The prize has been rerolled.")
                     except:
                         pass
 
-            # DM new winner
             try:
                 embed = discord.Embed(
                     title="🎉 YOU WON (REROLL)! 🎉",
-                    description=(
-                        f"🏆 **Prize:** {giveaway['prize']}\n\n"
-                        f"🎫 Claim in <#{SUPPORT_CHANNEL_ID}>"
-                    ),
+                    description=f"🏆 **Prize:** {giveaway['prize']}\n\n🎫 Claim in <#{SUPPORT_CHANNEL_ID}>",
                     color=discord.Color.gold()
                 )
                 await member.send(embed=embed)
             except:
                 pass
 
-            giveaway["last_winners"] = [new_winner_id]
+            giveaway["last_winners"] = [new_winner]
             giveaway["rerolls"] += 1
             save_giveaways(data)
 
-            await interaction.response.send_message(
-                f"🔄 New Winner: {member.mention}"
-            )
+            await interaction.response.send_message(f"🔄 New Winner: {member.mention}")
 
             staff_channel = bot.get_channel(STAFF_LOG_CHANNEL_ID)
             if staff_channel:
-                await staff_channel.send(
-                    f"🔁 REROLL #{giveaway['rerolls']} | "
-                    f"New Winner: {member.mention}"
-                )
+                await staff_channel.send(f"🔁 REROLL #{giveaway['rerolls']} | New Winner: {member.mention}")
+
             return
 
     await interaction.response.send_message("❌ Giveaway not found.", ephemeral=True)
