@@ -78,9 +78,30 @@ async def end_giveaway(giveaway_id):
     )
 
     giveaway["ended"] = True
+    giveaway["last_winners"] = winners
     save_giveaways(data)
 
-    mentions = [channel.guild.get_member(w).mention for w in winners]
+    mentions = []
+
+    for winner_id in winners:
+        member = channel.guild.get_member(winner_id)
+        if member:
+            mentions.append(member.mention)
+
+            # 🔥 CUSTOM WINNER DM
+            try:
+                embed = discord.Embed(
+                    title="🎉 YOU WON THE GIVEAWAY! 🎉",
+                    description=(
+                        f"🏆 Prize: **{giveaway['prize']}**\n\n"
+                        f"🎫 Please create a ticket in <#{SUPPORT_CHANNEL_ID}> to claim your reward.\n\n"
+                        f"⏳ You have limited time to claim!"
+                    ),
+                    color=discord.Color.light_grey()
+                )
+                await member.send(embed=embed)
+            except:
+                pass
 
     embed = discord.Embed(
         title="🎉 GIVEAWAY ENDED",
@@ -145,12 +166,49 @@ async def reroll(interaction: discord.Interaction, message_id: str):
     for giveaway in data.values():
         if str(giveaway["message_id"]) == message_id and giveaway["ended"]:
 
+            old_winners = giveaway.get("last_winners", [])
+
             winners = random.sample(
                 giveaway["entries"],
                 min(giveaway["winners"], len(giveaway["entries"]))
             )
 
-            mentions = [interaction.guild.get_member(w).mention for w in winners]
+            giveaway["last_winners"] = winners
+            save_giveaways(data)
+
+            mentions = []
+
+            for w in winners:
+                member = interaction.guild.get_member(w)
+                if member:
+                    mentions.append(member.mention)
+
+                    # 🔥 NEW WINNER DM
+                    try:
+                        embed = discord.Embed(
+                            title="🎉 YOU WON (REROLL)! 🎉",
+                            description=(
+                                f"🏆 Prize: **{giveaway['prize']}**\n\n"
+                                f"🎫 Create a ticket in <#{SUPPORT_CHANNEL_ID}> to claim!"
+                            ),
+                            color=discord.Color.light_grey()
+                        )
+                        await member.send(embed=embed)
+                    except:
+                        pass
+
+            # 🔥 OLD WINNER DM (REMOVED)
+            for old in old_winners:
+                if old not in winners:
+                    old_member = interaction.guild.get_member(old)
+                    if old_member:
+                        try:
+                            await old_member.send(
+                                "⚠️ Unfortunately, you did not claim your giveaway reward in time. "
+                                "The prize has been rerolled."
+                            )
+                        except:
+                            pass
 
             await interaction.response.send_message(
                 f"🔄 New Winner(s): {', '.join(mentions)}"
@@ -159,9 +217,9 @@ async def reroll(interaction: discord.Interaction, message_id: str):
 
     await interaction.response.send_message("Giveaway not found.", ephemeral=True)
 
-# ================= CLEAN GREY SERVER STATS =================
+# ================= ANIMATED SERVER STATS =================
 
-@bot.tree.command(name="serverstats", description="View server statistics")
+@bot.tree.command(name="serverstats", description="Animated server statistics")
 async def serverstats(interaction: discord.Interaction):
 
     guild = interaction.guild
@@ -169,37 +227,65 @@ async def serverstats(interaction: discord.Interaction):
     active = sum(1 for g in data.values() if not g.get("ended"))
 
     width, height = 1000, 500
-    img = Image.new("RGBA", (width, height), (40, 40, 40))
-    draw = ImageDraw.Draw(img)
+    frames = []
 
-    # white glass panel
-    panel = Image.new("RGBA", (850, 380), (255, 255, 255, 40))
-    panel = panel.filter(ImageFilter.GaussianBlur(3))
-    img.paste(panel, (75, 60), panel)
-
-    # watermark
-    if os.path.exists("as_logo.png"):
-        logo = Image.open("as_logo.png").convert("RGBA")
-        logo = logo.resize((500, 500))
-        alpha = logo.split()[3]
-        alpha = alpha.point(lambda p: p * 0.1)
-        logo.putalpha(alpha)
-        img.paste(logo, (350, 0), logo)
+    member_count = guild.member_count
+    online_count = sum(m.status != discord.Status.offline for m in guild.members)
+    boost_count = guild.premium_subscription_count
 
     font_title = ImageFont.truetype("Montserrat-Bold.ttf", 50)
-    font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 36)
+    font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 30)
 
-    draw.text((140, 100), "ARAB'S STUDIO SERVER STATS", font=font_title, fill=(255,255,255))
+    spacing = 70
+    total_frames = 25
 
-    draw.text((160, 200), f"Members: {guild.member_count}", font=font_stat, fill=(255,255,255))
-    draw.text((160, 250), f"Online: {sum(m.status != discord.Status.offline for m in guild.members)}", font=font_stat, fill=(255,255,255))
-    draw.text((160, 300), f"Boost Level: {guild.premium_tier}", font=font_stat, fill=(255,255,255))
-    draw.text((160, 350), f"Boost Count: {guild.premium_subscription_count}", font=font_stat, fill=(255,255,255))
-    draw.text((160, 400), f"Active Giveaways: {active}", font=font_stat, fill=(255,255,255))
+    for frame in range(total_frames):
 
-    path = f"stats_{guild.id}.png"
-    img.save(path)
+        img = Image.new("RGBA", (width, height), (35, 35, 35))
+        draw = ImageDraw.Draw(img)
+
+        # Moving X O pattern
+        pattern = Image.new("RGBA", (width * 2, height), (0,0,0,0))
+        p_draw = ImageDraw.Draw(pattern)
+
+        for y in range(0, height, spacing):
+            for x in range(0, width * 2, spacing):
+                p_draw.text((x, y), "X", font=font_stat, fill=(255,255,255,20))
+                p_draw.text((x+30, y+30), "O", font=font_stat, fill=(255,255,255,20))
+
+        offset = (frame * 6) % spacing
+        cropped = pattern.crop((offset, 0, offset + width, height))
+        img = Image.alpha_composite(img, cropped)
+        draw = ImageDraw.Draw(img)
+
+        draw.text((120, 60), "ARAB'S STUDIO SERVER STATS", font=font_title, fill=(255,255,255))
+
+        def bar(x,y,value,max_value,label):
+            bar_width = 500
+            percent = min(value/max_value,1)
+            fill = int(bar_width * percent * (frame/total_frames))
+            draw.rectangle((x,y,x+bar_width,y+25), fill=(70,70,70))
+            draw.rectangle((x,y,x+fill,y+25), fill=(230,230,230))
+            draw.text((x,y-30), f"{label}: {value}", font=font_stat, fill=(255,255,255))
+
+        bar(200,170,member_count,500,"Members")
+        bar(200,240,online_count,200,"Online")
+        bar(200,310,boost_count,50,"Boost Count")
+        bar(200,380,active,10,"Active Giveaways")
+
+        frames.append(img)
+
+    path = f"stats_{guild.id}.gif"
+    frames[0].save(
+        path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=60,
+        loop=0,
+        disposal=2
+    )
 
     await interaction.response.send_message(file=discord.File(path))
 
 bot.run(TOKEN)
+
