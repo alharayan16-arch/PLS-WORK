@@ -121,7 +121,6 @@ async def create_welcome_gif(member):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # XO pattern
         for y in range(0, height, spacing):
             for x in range(0, width, spacing):
                 draw.text((x,y),"X",font=font_small,fill=(255,255,255,40))
@@ -145,10 +144,8 @@ async def create_welcome_gif(member):
 
         img.paste(avatar, (60,150), avatar)
 
-        # AS logo (fixed glow, no blur artifact)
         draw.text((width-300,40),"AS",font=font_logo,fill=(255,255,255))
 
-        # bottom stripes
         for i in range(0,width,180):
             draw.rectangle((i,height-60,i+90,height-20),fill=(255,255,255,200))
 
@@ -193,9 +190,105 @@ class GiveawayView(discord.ui.View):
 
         button.label = f"🎉 Enter Giveaway ({len(giveaway['entries'])})"
         await interaction.message.edit(view=self)
+
         await interaction.response.send_message("Entered!", ephemeral=True)
 
-# ================= COMMANDS =================
+# ================= GIVEAWAY COMMAND =================
+
+@bot.tree.command(name="giveaway", description="Start a giveaway")
+async def giveaway(interaction: discord.Interaction,
+                   duration: str,
+                   winners: int,
+                   prize: str,
+                   requirements: str = "None"):
+
+    if not interaction.user.guild_permissions.manage_guild:
+        await interaction.response.send_message("Need Manage Server permission.", ephemeral=True)
+        return
+
+    duration_seconds = parse_duration(duration)
+    if not duration_seconds:
+        await interaction.response.send_message("Invalid duration format.", ephemeral=True)
+        return
+
+    giveaway_id = str(interaction.id)
+    end_time = int(datetime.datetime.utcnow().timestamp()) + duration_seconds
+
+    embed = discord.Embed(title="✨ ARAB'S STUDIO GIVEAWAY ✨", color=GW_COLOR)
+    embed.add_field(name="🎁 Prize", value=f"**{prize}**", inline=False)
+    embed.add_field(name="👥 Winners", value=str(winners), inline=True)
+    embed.add_field(name="📌 Requirements", value=requirements, inline=True)
+    embed.add_field(name="⏳ Ends In", value=format_duration(duration_seconds), inline=False)
+
+    view = GiveawayView(giveaway_id)
+
+    await interaction.response.send_message(embed=embed, view=view)
+    message = await interaction.original_response()
+
+    data = load_giveaways()
+    data[giveaway_id] = {
+        "message_id": message.id,
+        "channel_id": interaction.channel.id,
+        "end_time": end_time,
+        "winners": winners,
+        "prize": prize,
+        "requirements": requirements,
+        "entries": [],
+        "ended": False
+    }
+    save_giveaways(data)
+
+    bot.loop.create_task(countdown_loop(giveaway_id))
+
+# ================= COUNTDOWN =================
+
+async def countdown_loop(giveaway_id):
+    while True:
+        data = load_giveaways()
+        giveaway = data[giveaway_id]
+
+        if giveaway["ended"]:
+            return
+
+        remaining = giveaway["end_time"] - int(datetime.datetime.utcnow().timestamp())
+        if remaining <= 0:
+            await end_giveaway(giveaway_id)
+            return
+
+        channel = bot.get_channel(giveaway["channel_id"])
+        message = await channel.fetch_message(giveaway["message_id"])
+        embed = message.embeds[0]
+        embed.set_field_at(3, name="⏳ Ends In", value=format_duration(remaining), inline=False)
+        await message.edit(embed=embed)
+
+        await asyncio.sleep(5)
+
+# ================= REROLL =================
+
+@bot.tree.command(name="reroll", description="Reroll a giveaway")
+async def reroll(interaction: discord.Interaction, message_id: str):
+
+    if not interaction.user.guild_permissions.manage_guild:
+        await interaction.response.send_message("Need Manage Server permission.", ephemeral=True)
+        return
+
+    data = load_giveaways()
+
+    for gid, giveaway in data.items():
+        if str(giveaway["message_id"]) == message_id and giveaway["ended"]:
+            winners = random.sample(
+                giveaway["entries"],
+                min(giveaway["winners"], len(giveaway["entries"]))
+            )
+            giveaway["last_winners"] = winners
+            save_giveaways(data)
+
+            await interaction.response.send_message("Giveaway rerolled.")
+            return
+
+    await interaction.response.send_message("Giveaway not found.", ephemeral=True)
+
+# ================= SERVERINFO =================
 
 @bot.tree.command(name="serverinfo", description="View server info")
 async def serverinfo(interaction: discord.Interaction):
@@ -206,7 +299,5 @@ async def serverinfo(interaction: discord.Interaction):
     embed.add_field(name="Boost Count", value=guild.premium_subscription_count)
     embed.add_field(name="Created", value=guild.created_at.strftime("%Y-%m-%d"))
     await interaction.response.send_message(embed=embed)
-
-# (Giveaway + reroll logic remains same as previous stable version)
 
 bot.run(TOKEN)
