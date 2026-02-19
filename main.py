@@ -97,7 +97,7 @@ async def end_giveaway(giveaway_id):
                         f"🎫 Please create a ticket in <#{SUPPORT_CHANNEL_ID}> to claim your reward.\n\n"
                         f"⏳ You have limited time to claim!"
                     ),
-                    color=discord.Color.light_grey()
+                    color=discord.Color.purple()
                 )
                 await member.send(embed=embed)
             except:
@@ -237,33 +237,39 @@ async def serverstats(interaction: discord.Interaction):
     font_stat = ImageFont.truetype("Montserrat-Regular.ttf", 30)
 
     spacing = 70
-    total_frames = 25
+    total_frames = 40   # smoother animation
 
     for frame in range(total_frames):
 
         img = Image.new("RGBA", (width, height), (35, 35, 35))
         draw = ImageDraw.Draw(img)
 
-        # Moving X O pattern
+        # 🔥 Moving XO background (never stops visually)
         pattern = Image.new("RGBA", (width * 2, height), (0,0,0,0))
         p_draw = ImageDraw.Draw(pattern)
 
         for y in range(0, height, spacing):
             for x in range(0, width * 2, spacing):
-                p_draw.text((x, y), "X", font=font_stat, fill=(255,255,255,20))
-                p_draw.text((x+30, y+30), "O", font=font_stat, fill=(255,255,255,20))
+                p_draw.text((x, y), "X", font=font_stat, fill=(255,255,255,18))
+                p_draw.text((x+30, y+30), "O", font=font_stat, fill=(255,255,255,18))
 
-        offset = (frame * 6) % spacing
+        offset = (frame * 4) % spacing
         cropped = pattern.crop((offset, 0, offset + width, height))
         img = Image.alpha_composite(img, cropped)
         draw = ImageDraw.Draw(img)
 
         draw.text((120, 60), "ARAB'S STUDIO SERVER STATS", font=font_title, fill=(255,255,255))
 
+        # 🔥 Bars fill first half, then stay full
         def bar(x,y,value,max_value,label):
             bar_width = 500
             percent = min(value/max_value,1)
-            fill = int(bar_width * percent * (frame/total_frames))
+
+            if frame < total_frames // 2:
+                fill = int(bar_width * percent * (frame/(total_frames//2)))
+            else:
+                fill = int(bar_width * percent)
+
             draw.rectangle((x,y,x+bar_width,y+25), fill=(70,70,70))
             draw.rectangle((x,y,x+fill,y+25), fill=(230,230,230))
             draw.text((x,y-30), f"{label}: {value}", font=font_stat, fill=(255,255,255))
@@ -280,8 +286,8 @@ async def serverstats(interaction: discord.Interaction):
         path,
         save_all=True,
         append_images=frames[1:],
-        duration=60,
-        loop=0,
+        duration=70,   # smoother playback
+        loop=0,        # infinite
         disposal=2
     )
 
