@@ -65,7 +65,7 @@ async def create_welcome_gif(member):
     avatar.putalpha(mask)
 
     for frame in range(total_frames):
-        img = Image.new("RGBA", (width, height), (30, 30, 30))
+        img = Image.new("RGBA", (width, height), (173, 216, 230))
         draw = ImageDraw.Draw(img)
 
         pattern = Image.new("RGBA", (width*2, height), (0,0,0,0))
@@ -325,10 +325,9 @@ async def serverstats(interaction: discord.Interaction):
             percent=min(value/max_value,1)
             fill=int(bar_width*percent*(frame/total_frames))
 
-            draw.rectangle((x,y,x+bar_width,y+25),fill=(60,60,60))
-            draw.rectangle((x-4,y-4,x+fill+4,y+29),fill=(90,40,200))
-            draw.rectangle((x-2,y-2,x+fill+2,y+27),fill=(120,60,255))
-            draw.rectangle((x,y,x+fill,y+25),fill=(170,100,255))
+            draw.rectangle((x-4,y-4,x+fill+4,y+29),fill=(70, 0, 150))      # outer glow
+            draw.rectangle((x-2,y-2,x+fill+2,y+27),fill=(110, 0, 200))    # inner glow
+            draw.rectangle((x,y,x+fill,y+25),fill=(160, 60, 255))         # main bar
             draw.text((x,y-30),f"{label}: {value}",font=font_stat,fill=(255,255,255))
 
         glow_bar(200,180,guild.member_count,500,"Members")
