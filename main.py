@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -67,7 +66,7 @@ def format_duration(seconds):
     if s > 0: parts.append(f"{s}s")
     return " ".join(parts) if parts else "0s"
 
-# ================= WELCOME SYSTEM (YOUR ORIGINAL — UNTOUCHED) =================
+# ================= WELCOME SYSTEM =================
 
 async def create_welcome_gif(member):
 
@@ -124,7 +123,6 @@ async def create_welcome_gif(member):
         img = base_bg.copy()
         draw = ImageDraw.Draw(img)
 
-        # MOVING XO PATTERN
         pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         p_draw = ImageDraw.Draw(pattern_layer)
 
@@ -138,7 +136,6 @@ async def create_welcome_gif(member):
         img = Image.alpha_composite(img, cropped_pattern)
         draw = ImageDraw.Draw(img)
 
-        # TYPING TEXT
         cycle_frame = frame % total_cycle
         cumulative = 0
         for seq, seq_length in zip(sequences, cycle_lengths):
@@ -156,7 +153,6 @@ async def create_welcome_gif(member):
 
         img.paste(avatar, (60, 150), avatar)
 
-        # MOVING STRIPES
         stripe_canvas = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
         s_draw = ImageDraw.Draw(stripe_canvas)
 
@@ -183,7 +179,6 @@ async def create_welcome_gif(member):
         img = Image.alpha_composite(img, cropped_stripes)
         draw = ImageDraw.Draw(img)
 
-        # AS LOGO WITH GLOW
         letter_spacing = -8
         a_width = draw.textlength("A", font=font_logo)
         s_width = draw.textlength("S", font=font_logo)
@@ -203,7 +198,6 @@ async def create_welcome_gif(member):
         draw.text((as_x, as_y - 12), "A", font=font_logo, fill=(255, 255, 255))
         draw.text((as_x + a_width + letter_spacing, as_y), "S", font=font_logo, fill=(255, 255, 255))
 
-        # SERVER LINK
         draw.text((as_x - 100, as_y + 115),
                   "https://discord.gg/arabsstudio",
                   font=font_link,
@@ -212,16 +206,7 @@ async def create_welcome_gif(member):
         frames.append(img)
 
     gif_path = f"welcome_{member.id}.gif"
-    frames[0].save(
-        gif_path,
-        save_all=True,
-        append_images=frames[1:],
-        duration=60,
-        loop=0,
-        disposal=2,
-        optimize=True
-    )
-
+    frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=60, loop=0)
     return gif_path
 
 @bot.event
@@ -233,8 +218,7 @@ async def on_member_join(member):
         file=discord.File(gif)
     )
 
-# ================= GIVEAWAY + REROLL + SERVERINFO =================
-# (Keeping concise here because your issue was welcome system)
+# ================= SERVER INFO =================
 
 @bot.tree.command(name="serverinfo", description="View server info")
 async def serverinfo(interaction: discord.Interaction):
@@ -245,47 +229,8 @@ async def serverinfo(interaction: discord.Interaction):
     embed.add_field(name="Boost Count", value=guild.premium_subscription_count)
     embed.add_field(name="Created", value=guild.created_at.strftime("%Y-%m-%d"))
     await interaction.response.send_message(embed=embed)
+
 # ================= GIVEAWAY SYSTEM =================
-
-import random
-import json
-import asyncio
-import re
-
-GIVEAWAY_FILE = "giveaways.json"
-GW_COLOR = discord.Color(0x5E17EB)
-SUPPORT_CHANNEL_ID = 1472228682566340842
-STAFF_LOG_CHANNEL_ID = 1473910880264519730
-
-def load_giveaways():
-    if not os.path.exists(GIVEAWAY_FILE):
-        return {}
-    with open(GIVEAWAY_FILE, "r") as f:
-        return json.load(f)
-
-def save_giveaways(data):
-    with open(GIVEAWAY_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-
-def parse_duration(duration: str):
-    pattern = r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?"
-    match = re.fullmatch(pattern, duration.lower())
-    if not match:
-        return None
-    h = int(match.group(1)) if match.group(1) else 0
-    m = int(match.group(2)) if match.group(2) else 0
-    s = int(match.group(3)) if match.group(3) else 0
-    return h*3600 + m*60 + s
-
-def format_duration(seconds):
-    h = seconds // 3600
-    m = (seconds % 3600) // 60
-    s = seconds % 60
-    parts = []
-    if h > 0: parts.append(f"{h}h")
-    if m > 0: parts.append(f"{m}m")
-    if s > 0: parts.append(f"{s}s")
-    return " ".join(parts) if parts else "0s"
 
 class GiveawayView(discord.ui.View):
     def __init__(self, giveaway_id):
@@ -452,42 +397,17 @@ async def reroll(interaction: discord.Interaction, message_id: str):
             giveaway["last_winners"] = new_winners
             save_giveaways(data)
 
-            # DM old winners
-            for old in old_winners:
-                if old not in new_winners:
-                    try:
-                        user = await bot.fetch_user(old)
-                        embed = discord.Embed(
-                            description="⚠️ You did not claim your reward in time. The giveaway has been rerolled.",
-                            color=discord.Color.red()
-                        )
-                        await user.send(embed=embed)
-                    except:
-                        pass
-
-            # DM new winners
-            for winner_id in new_winners:
-                try:
-                    user = await bot.fetch_user(winner_id)
-                    embed = discord.Embed(title="🎉 YOU WON!", color=GW_COLOR)
-                    embed.add_field(name="🏆 Prize", value=f"**{giveaway['prize']}**", inline=False)
-                    embed.add_field(name="📩 Claim", value=f"Create a ticket in <#{SUPPORT_CHANNEL_ID}>", inline=False)
-                    await user.send(embed=embed)
-                except:
-                    pass
-
             winner_mentions = " ".join(f"<@{w}>" for w in new_winners)
 
-            channel = bot.get_channel(giveaway["channel_id"])
-            message = await channel.fetch_message(giveaway["message_id"])
-
-            embed = discord.Embed(title="🎉 GIVEAWAY ENDED", color=GW_COLOR)
-            embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
-            embed.add_field(name="👥 Entries", value=len(entries), inline=True)
-            embed.add_field(name="🏆 Winner(s)", value=winner_mentions, inline=False)
-            embed.set_footer(text="🔄 This giveaway has been rerolled.")
-
-            await message.edit(embed=embed)
+            # STAFF REROLL LOG
+            staff = bot.get_channel(STAFF_LOG_CHANNEL_ID)
+            if staff:
+                log_embed = discord.Embed(title="🔄 Giveaway Rerolled", color=GW_COLOR)
+                log_embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
+                log_embed.add_field(name="👥 New Winner(s)", value=winner_mentions, inline=False)
+                log_embed.add_field(name="👮 Rerolled By", value=interaction.user.mention, inline=False)
+                log_embed.add_field(name="🆔 Message ID", value=message_id, inline=False)
+                await staff.send(embed=log_embed)
 
             await interaction.response.send_message("Giveaway rerolled successfully.")
             return
