@@ -282,4 +282,4 @@ async def giveaway(interaction: discord.Interaction,
     embed.add_field(name="👤 Hosted By", value=interaction.user.mention)
     embed.add_field(name="👥 Winners", value=winners)
     embed.add_field(name="⏳ Ends", value=f"<t:{end_time}:R>", inline=False)
-    embed.add_field(name="🎟 Entries", value="0", inline=T_
+    embed.add_field(name="🎟 Entries", value="0", inline=True)
