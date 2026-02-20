@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
 
-REVIEW_CHANNEL_ID = 1474454840229892199  # PUT REVIEW CHANNEL ID
-STAFF_ROLE_ID = 1472767129345327147     # PUT STAFF ROLE ID
+REVIEW_CHANNEL_ID = 1474454840229892199
+STAFF_ROLE_ID = 1472767129345327147
 
 
 # ================= REVIEW BUTTONS =================
@@ -55,13 +55,23 @@ class ReviewView(discord.ui.View):
 
 class ModalOne(discord.ui.Modal, title="Staff Application (1/2)"):
 
-    q1 = discord.ui.TextInput(label="How old are you?")
-    q2 = discord.ui.TextInput(label="What timezone are you in?")
-    q3 = discord.ui.TextInput(label="How active are you per day/week?")
-    q4 = discord.ui.TextInput(label="Have you read and understood the server rules?")
-    q5 = discord.ui.TextInput(label="Have you been staff before? If yes, where and what role?")
+    def __init__(self):
+        super().__init__()
+
+        self.q1 = discord.ui.TextInput(label="How old are you?")
+        self.q2 = discord.ui.TextInput(label="What timezone are you in?")
+        self.q3 = discord.ui.TextInput(label="How active are you per day/week?")
+        self.q4 = discord.ui.TextInput(label="Have you read and understood the rules?")
+        self.q5 = discord.ui.TextInput(label="Have you been staff before? If yes, where?")
+
+        self.add_item(self.q1)
+        self.add_item(self.q2)
+        self.add_item(self.q3)
+        self.add_item(self.q4)
+        self.add_item(self.q5)
 
     async def on_submit(self, interaction: discord.Interaction):
+
         data = {
             "How old are you?": self.q1.value,
             "Timezone?": self.q2.value,
@@ -70,7 +80,23 @@ class ModalOne(discord.ui.Modal, title="Staff Application (1/2)"):
             "Previous staff?": self.q5.value,
         }
 
-        await interaction.response.send_modal(ModalTwo(data))
+        await interaction.response.send_message(
+            "Click continue to answer the remaining questions.",
+            ephemeral=True,
+            view=ContinueView(data)
+        )
+
+
+# ================= CONTINUE BUTTON =================
+
+class ContinueView(discord.ui.View):
+    def __init__(self, previous_answers):
+        super().__init__(timeout=300)
+        self.previous_answers = previous_answers
+
+    @discord.ui.button(label="Continue Application", style=discord.ButtonStyle.primary)
+    async def continue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(ModalTwo(self.previous_answers))
 
 
 # ================= MODAL 2 =================
@@ -83,7 +109,7 @@ class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
 
         self.q6 = discord.ui.TextInput(label="Experience with moderation bots?")
         self.q7 = discord.ui.TextInput(label="Why should we choose you?", style=discord.TextStyle.paragraph)
-        self.q8 = discord.ui.TextInput(label="Member spamming but 'joking' — what do you do?", style=discord.TextStyle.paragraph)
+        self.q8 = discord.ui.TextInput(label="Spamming member — what do you do?", style=discord.TextStyle.paragraph)
         self.q9 = discord.ui.TextInput(label="Two members arguing — how do you handle it?", style=discord.TextStyle.paragraph)
         self.q10 = discord.ui.TextInput(label="Staff abusing power — what would you do?", style=discord.TextStyle.paragraph)
 
@@ -104,20 +130,6 @@ class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
             "Staff abuse scenario?": self.q10.value,
         })
 
-        await interaction.response.send_message(
-            "Final Question:\n\nA friend breaks the rules — how do you respond?\n\nType your answer below.",
-            ephemeral=True
-        )
-
-        def check(m):
-            return m.author == interaction.user and m.channel == interaction.channel
-
-        try:
-            msg = await interaction.client.wait_for("message", check=check, timeout=300)
-            data["Friend breaks rules?"] = msg.content
-        except:
-            return
-
         embed = discord.Embed(
             title="📩 New Staff Application",
             color=discord.Color.blue()
@@ -132,13 +144,13 @@ class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
         if review_channel:
             await review_channel.send(embed=embed, view=ReviewView(interaction.user))
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "✅ Application submitted successfully!",
             ephemeral=True
         )
 
 
-# ================= BUTTON =================
+# ================= APPLY BUTTON =================
 
 class ApplyView(discord.ui.View):
     @discord.ui.button(label="📝 Apply for Staff", style=discord.ButtonStyle.primary)
