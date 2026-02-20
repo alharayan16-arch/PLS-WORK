@@ -6,7 +6,6 @@ import aiohttp
 import io
 import os
 
-
 WELCOME_CHANNEL_ID = 1472224372382109905
 
 
@@ -15,13 +14,12 @@ class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # ================= GIF CREATION =================
-
     async def create_welcome_gif(self, member):
 
         width, height = 1000, 400
         frames = []
 
+        # Fonts
         font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
         font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
         font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
@@ -38,7 +36,7 @@ class Welcome(commands.Cog):
         member_count = f"Member #{member.guild.member_count}"
         join_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
 
-        # ===== Background Gradient =====
+        # ===== Gradient Background =====
         base_bg = Image.new("RGB", (width, height))
         bg_draw = ImageDraw.Draw(base_bg)
 
@@ -75,7 +73,7 @@ class Welcome(commands.Cog):
             img = base_bg.copy()
             draw = ImageDraw.Draw(img)
 
-            # ===== Moving Pattern =====
+            # ===== Moving Pattern (X/O) =====
             pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
             p_draw = ImageDraw.Draw(pattern_layer)
 
@@ -109,7 +107,34 @@ class Welcome(commands.Cog):
 
             img.paste(avatar, (60, 150), avatar)
 
-            # ===== Logo Glow =====
+            # ===== MOVING STRIPES (RESTORED) =====
+            stripe_canvas = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
+            s_draw = ImageDraw.Draw(stripe_canvas)
+
+            stripe_y = height - 80
+            stripe_height = 60
+            stripe_spacing = 180
+            stripe_width = 90
+
+            for i in range(0, width * 2, stripe_spacing):
+                x = i
+                s_draw.polygon([
+                    (x, stripe_y),
+                    (x + stripe_width, stripe_y),
+                    (x + stripe_width - 35, stripe_y + stripe_height),
+                    (x - 35, stripe_y + stripe_height)
+                ], fill=(255, 255, 255, 245))
+
+            stripe_offset = (frame * 6) % stripe_spacing
+            cropped_stripes = stripe_canvas.crop(
+                (stripe_spacing - stripe_offset, 0,
+                 stripe_spacing - stripe_offset + width, height)
+            )
+
+            img = Image.alpha_composite(img, cropped_stripes)
+            draw = ImageDraw.Draw(img)
+
+            # ===== Glow Logo =====
             letter_spacing = -8
             a_width = draw.textlength("A", font=font_logo)
             s_width = draw.textlength("S", font=font_logo)
@@ -129,10 +154,12 @@ class Welcome(commands.Cog):
             draw.text((as_x, as_y - 12), "A", font=font_logo, fill=(255, 255, 255))
             draw.text((as_x + a_width + letter_spacing, as_y), "S", font=font_logo, fill=(255, 255, 255))
 
-            draw.text((as_x - 100, as_y + 115),
-                      "https://discord.gg/arabsstudio",
-                      font=font_link,
-                      fill=(255, 255, 255, 160))
+            draw.text(
+                (as_x - 100, as_y + 115),
+                "https://discord.gg/arabsstudio",
+                font=font_link,
+                fill=(255, 255, 255, 160)
+            )
 
             frames.append(img)
 
@@ -141,7 +168,7 @@ class Welcome(commands.Cog):
 
         return gif_path
 
-    # ================= MEMBER JOIN EVENT =================
+    # ================= MEMBER JOIN =================
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -157,7 +184,6 @@ class Welcome(commands.Cog):
             file=discord.File(gif_path)
         )
 
-        # Delete file after sending (important for storage)
         try:
             os.remove(gif_path)
         except:
