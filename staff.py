@@ -18,10 +18,7 @@ class ReviewView(discord.ui.View):
 
         role = interaction.guild.get_role(STAFF_ROLE_ID)
         if role:
-            try:
-                await self.applicant.add_roles(role)
-            except Exception as e:
-                print(e)
+            await self.applicant.add_roles(role)
 
         try:
             await self.applicant.send(
@@ -54,7 +51,7 @@ class ReviewView(discord.ui.View):
         await interaction.followup.send("Applicant denied.")
 
 
-# ================= MODAL 1 (First 5 Questions) =================
+# ================= MODAL 1 =================
 
 class ModalOne(discord.ui.Modal, title="Staff Application (1/2)"):
 
@@ -67,16 +64,16 @@ class ModalOne(discord.ui.Modal, title="Staff Application (1/2)"):
     async def on_submit(self, interaction: discord.Interaction):
         data = {
             "How old are you?": self.q1.value,
-            "What timezone are you in?": self.q2.value,
-            "How active are you per day/week?": self.q3.value,
-            "Read and understood rules?": self.q4.value,
-            "Previous staff experience?": self.q5.value,
+            "Timezone?": self.q2.value,
+            "Activity?": self.q3.value,
+            "Read rules?": self.q4.value,
+            "Previous staff?": self.q5.value,
         }
 
         await interaction.response.send_modal(ModalTwo(data))
 
 
-# ================= MODAL 2 (Remaining 6 Questions) =================
+# ================= MODAL 2 =================
 
 class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
 
@@ -84,32 +81,12 @@ class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
         super().__init__()
         self.previous_answers = previous_answers
 
-        self.q6 = discord.ui.TextInput(
-            label="Experience with moderation bots (Dyno, Carl-bot, etc.)?"
-        )
-        self.q7 = discord.ui.TextInput(
-            label="Why should we choose you over others?",
-            style=discord.TextStyle.paragraph
-        )
-        self.q8 = discord.ui.TextInput(
-            label="Member spamming but 'joking' — what do you do?",
-            style=discord.TextStyle.paragraph
-        )
-        self.q9 = discord.ui.TextInput(
-            label="Two members arguing — how do you handle it?",
-            style=discord.TextStyle.paragraph
-        )
-        self.q10 = discord.ui.TextInput(
-            label="Staff abusing power — what would you do?",
-            style=discord.TextStyle.paragraph
-        )
+        self.q6 = discord.ui.TextInput(label="Experience with moderation bots?")
+        self.q7 = discord.ui.TextInput(label="Why should we choose you?", style=discord.TextStyle.paragraph)
+        self.q8 = discord.ui.TextInput(label="Member spamming but 'joking' — what do you do?", style=discord.TextStyle.paragraph)
+        self.q9 = discord.ui.TextInput(label="Two members arguing — how do you handle it?", style=discord.TextStyle.paragraph)
+        self.q10 = discord.ui.TextInput(label="Staff abusing power — what would you do?", style=discord.TextStyle.paragraph)
 
-        self.q11 = discord.ui.TextInput(
-            label="A friend breaks the rules — how do you respond?",
-            style=discord.TextStyle.paragraph
-        )
-
-        # Add only first 5 to modal (Discord limit)
         self.add_item(self.q6)
         self.add_item(self.q7)
         self.add_item(self.q8)
@@ -118,7 +95,6 @@ class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
-        # Save first 10 answers
         data = self.previous_answers
         data.update({
             "Bot experience?": self.q6.value,
@@ -128,11 +104,8 @@ class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
             "Staff abuse scenario?": self.q10.value,
         })
 
-        # Since Discord only allows 5 per modal,
-        # we collect question 11 through ephemeral reply
-
         await interaction.response.send_message(
-            "Final Question:\n\nA friend breaks the rules — how do you respond?",
+            "Final Question:\n\nA friend breaks the rules — how do you respond?\n\nType your answer below.",
             ephemeral=True
         )
 
