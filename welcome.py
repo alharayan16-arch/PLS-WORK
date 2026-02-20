@@ -36,11 +36,10 @@ class Welcome(commands.Cog):
             "BENVENUTO",
         ]
 
-        # Arabic word
+        # Arabic
         arabic_full = "مرحباً بك"
         reshaped = arabic_reshaper.reshape(arabic_full)
         arabic_word = get_display(reshaped)
-
         words.append(arabic_word)
 
         username = member.display_name
@@ -73,10 +72,11 @@ class Welcome(commands.Cog):
         ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
         avatar.putalpha(mask)
 
-        # ================= TYPEWRITER TIMELINE =================
+        # ================= TYPEWRITER SETTINGS =================
         typing_speed = 4
-        deleting_speed = 3
+        deleting_speed = 1  # fast delete
         pause_after_type = 20
+        pause_after_delete = 8  # ~0.5 sec (8 frames × 60ms)
 
         timeline = []
         current_frame = 0
@@ -88,13 +88,16 @@ class Welcome(commands.Cog):
                 timeline.append((current_frame, word[:i]))
                 current_frame += typing_speed
 
-            # PAUSE
+            # Pause after full word
             current_frame += pause_after_type
 
             # DELETE
             for i in range(len(word), 0, -1):
                 timeline.append((current_frame, word[:i]))
                 current_frame += deleting_speed
+
+            # Pause after delete before next language
+            current_frame += pause_after_delete
 
         total_frames = current_frame + 20
 
@@ -119,7 +122,7 @@ class Welcome(commands.Cog):
             img = Image.alpha_composite(img, cropped_pattern)
             draw = ImageDraw.Draw(img)
 
-            # ===== GET CURRENT WORD STATE =====
+            # ===== GET CURRENT TEXT =====
             welcome_text = ""
             for trigger_frame, text in timeline:
                 if frame >= trigger_frame:
@@ -131,9 +134,11 @@ class Welcome(commands.Cog):
             if frame % 20 < 10:
                 welcome_text += "|"
 
-            # ===== DRAW TEXT (Arabic left side too) =====
-            if welcome_text.replace("|", "") == arabic_word[:len(welcome_text.replace("|", ""))]:
-                draw.text((60, 60), welcome_text, font=font_arabic, fill=(255, 255, 255))
+            # ===== DRAW TEXT =====
+            clean_text = welcome_text.replace("|", "")
+
+            if clean_text and clean_text in arabic_word:
+                draw.text((60, 50), welcome_text, font=font_arabic, fill=(255, 255, 255))  # Arabic higher
             else:
                 draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
