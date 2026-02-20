@@ -114,7 +114,7 @@ class Giveaways(commands.Cog):
             embed = self.cog.build_embed(giveaway)
             await message.edit(embed=embed)
 
-            await interaction.response.send_message("You're in! 🔥", ephemeral=True)
+            await interaction.response.send_message("You're entered. Good luck. 🍀", ephemeral=True)
 
     # ================= GIVEAWAY COMMAND =================
 
