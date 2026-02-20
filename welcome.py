@@ -28,7 +28,6 @@ class Welcome(commands.Cog):
         font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 110)
         font_link = ImageFont.truetype("Montserrat-Regular.ttf", 24)
 
-        # Arabic font
         font_arabic = ImageFont.truetype("NotoSansArabic_Condensed-Bold.ttf", 70)
 
         # ================= SEQUENCES =================
@@ -118,21 +117,22 @@ class Welcome(commands.Cog):
                     break
                 cumulative += seq_length
 
-            # Draw welcome text
- if welcome_text in arabic_sequence:
-    draw.text(
-        (60, 60),
-        welcome_text,
-        font=font_arabic,
-        fill=(255, 255, 255)
-    )
-else:
-    draw.text(
-        (60, 60),
-        welcome_text,
-        font=font_title,
-        fill=(255, 255, 255)
-    )
+            # Draw welcome text (Arabic now LEFT side)
+            if welcome_text in arabic_sequence:
+                draw.text(
+                    (60, 60),
+                    welcome_text,
+                    font=font_arabic,
+                    fill=(255, 255, 255)
+                )
+            else:
+                draw.text(
+                    (60, 60),
+                    welcome_text,
+                    font=font_title,
+                    fill=(255, 255, 255)
+                )
+
             # ================= USER INFO =================
             draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
             draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
