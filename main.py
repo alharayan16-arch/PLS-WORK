@@ -378,7 +378,10 @@ async def end_giveaway(giveaway_id):
 async def reroll(interaction: discord.Interaction, message_id: str):
 
     if not interaction.user.guild_permissions.manage_guild:
-        await interaction.response.send_message("You need Manage Server permission.", ephemeral=True)
+        await interaction.response.send_message(
+            "You need Manage Server permission.",
+            ephemeral=True
+        )
         return
 
     data = load_giveaways()
@@ -388,30 +391,97 @@ async def reroll(interaction: discord.Interaction, message_id: str):
 
             entries = giveaway["entries"]
             if not entries:
-                await interaction.response.send_message("No entries to reroll.", ephemeral=True)
+                await interaction.response.send_message(
+                    "No entries to reroll.",
+                    ephemeral=True
+                )
                 return
 
-            old_winners = giveaway["last_winners"]
-            new_winners = random.sample(entries, min(giveaway["winners"], len(entries)))
+            old_winners = giveaway.get("last_winners", [])
+
+            # Pick new winners
+            new_winners = random.sample(
+                entries,
+                min(giveaway["winners"], len(entries))
+            )
 
             giveaway["last_winners"] = new_winners
             save_giveaways(data)
 
             winner_mentions = " ".join(f"<@{w}>" for w in new_winners)
 
-            # STAFF REROLL LOG
+            # ================= DM OLD WINNERS =================
+            for old in old_winners:
+                if old not in new_winners:
+                    try:
+                        user = await bot.fetch_user(old)
+                        embed = discord.Embed(
+                            description="⚠️ You did not claim your reward in time. The giveaway has been rerolled.",
+                            color=discord.Color.red()
+                        )
+                        await user.send(embed=embed)
+                    except:
+                        pass
+
+            # ================= DM NEW WINNERS =================
+            for winner_id in new_winners:
+                try:
+                    user = await bot.fetch_user(winner_id)
+                    embed = discord.Embed(
+                        title="🎉 YOU WON!",
+                        color=GW_COLOR
+                    )
+                    embed.add_field(
+                        name="🏆 Prize",
+                        value=f"**{giveaway['prize']}**",
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="📩 Claim",
+                        value=f"Create a ticket in <#{SUPPORT_CHANNEL_ID}>",
+                        inline=False
+                    )
+                    await user.send(embed=embed)
+                except:
+                    pass
+
+            # ================= EDIT ORIGINAL MESSAGE =================
+            channel = bot.get_channel(giveaway["channel_id"])
+            message = await channel.fetch_message(giveaway["message_id"])
+
+            embed = discord.Embed(
+                title="🎉 GIVEAWAY ENDED",
+                color=GW_COLOR
+            )
+            embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
+            embed.add_field(name="👥 Entries", value=len(entries), inline=True)
+            embed.add_field(name="🏆 Winner(s)", value=winner_mentions, inline=False)
+            embed.set_footer(text="🔄 This giveaway has been rerolled.")
+
+            await message.edit(embed=embed)
+
+            # ================= STAFF LOG =================
             staff = bot.get_channel(STAFF_LOG_CHANNEL_ID)
             if staff:
-                log_embed = discord.Embed(title="🔄 Giveaway Rerolled", color=GW_COLOR)
+                log_embed = discord.Embed(
+                    title="🔄 Giveaway Rerolled",
+                    color=GW_COLOR
+                )
                 log_embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
                 log_embed.add_field(name="👥 New Winner(s)", value=winner_mentions, inline=False)
                 log_embed.add_field(name="👮 Rerolled By", value=interaction.user.mention, inline=False)
                 log_embed.add_field(name="🆔 Message ID", value=message_id, inline=False)
                 await staff.send(embed=log_embed)
 
-            await interaction.response.send_message("Giveaway rerolled successfully.")
+            await interaction.response.send_message(
+                "Giveaway rerolled successfully.",
+                ephemeral=True
+            )
             return
 
-    await interaction.response.send_message("Giveaway not found.", ephemeral=True)
+    await interaction.response.send_message(
+        "Giveaway not found.",
+        ephemeral=True
+    )
 
 bot.run(TOKEN)
