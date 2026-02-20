@@ -10,7 +10,6 @@ import re
 GIVEAWAY_FILE = "giveaways.json"
 SUPPORT_CHANNEL_ID = 1472228682566340842
 STAFF_LOG_CHANNEL_ID = 1473910880264519730
-GW_COLOR = discord.Color(0x5E17EB)
 
 
 class Giveaways(commands.Cog):
@@ -34,7 +33,7 @@ class Giveaways(commands.Cog):
         with open(GIVEAWAY_FILE, "w") as f:
             json.dump(data, f, indent=4)
 
-    # ================= TIME =================
+    # ================= TIME PARSER =================
 
     def parse_duration(self, duration: str):
         pattern = r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?"
@@ -47,17 +46,7 @@ class Giveaways(commands.Cog):
         total = h * 3600 + m * 60 + s
         return total if total > 0 else None
 
-    def format_duration(self, seconds):
-        h = seconds // 3600
-        m = (seconds % 3600) // 60
-        s = seconds % 60
-        parts = []
-        if h > 0: parts.append(f"{h}h")
-        if m > 0: parts.append(f"{m}m")
-        if s > 0: parts.append(f"{s}s")
-        return " ".join(parts) if parts else "0s"
-
-    # ================= RESUME ON RESTART =================
+    # ================= RESUME AFTER RESTART =================
 
     async def resume_giveaways(self):
         await self.bot.wait_until_ready()
@@ -65,7 +54,7 @@ class Giveaways(commands.Cog):
 
         for gid, giveaway in data.items():
             if not giveaway.get("ended", True):
-                self.bot.loop.create_task(self.countdown_loop(gid))
+                self.bot.add_view(self.GiveawayView(self, gid))
 
     # ================= GIVEAWAY VIEW =================
 
@@ -75,7 +64,11 @@ class Giveaways(commands.Cog):
             self.cog = cog
             self.giveaway_id = giveaway_id
 
-        @discord.ui.button(label="🎉 Enter Giveaway (0)", style=discord.ButtonStyle.primary)
+        @discord.ui.button(
+            label="✨ Join Giveaway",
+            style=discord.ButtonStyle.success,
+            emoji="🎉"
+        )
         async def enter(self, interaction: discord.Interaction, button: discord.ui.Button):
 
             data = self.cog.load_giveaways()
@@ -90,7 +83,7 @@ class Giveaways(commands.Cog):
                 await interaction.response.send_message("This giveaway has ended.", ephemeral=True)
                 return
 
-            # Anti-alt: 7 day account age
+            # 7 day anti-alt
             min_age = datetime.timedelta(days=7)
             if datetime.datetime.utcnow() - interaction.user.created_at.replace(tzinfo=None) < min_age:
                 await interaction.response.send_message(
@@ -106,14 +99,14 @@ class Giveaways(commands.Cog):
             giveaway["entries"].append(interaction.user.id)
             self.cog.save_giveaways(data)
 
-            button.label = f"🎉 Enter Giveaway ({len(giveaway['entries'])})"
-            await interaction.message.edit(view=self)
-
-            await interaction.response.send_message("You entered the giveaway!", ephemeral=True)
+            await interaction.response.send_message(
+                "🔥 You have successfully entered the giveaway!",
+                ephemeral=True
+            )
 
     # ================= GIVEAWAY COMMAND =================
 
-    @discord.app_commands.command(name="giveaway", description="Start a giveaway")
+    @discord.app_commands.command(name="giveaway", description="Start a premium giveaway")
     async def giveaway(self, interaction: discord.Interaction,
                        duration: str,
                        winners: int,
@@ -121,7 +114,10 @@ class Giveaways(commands.Cog):
                        requirements: str = "None"):
 
         if not interaction.user.guild_permissions.manage_guild:
-            await interaction.response.send_message("You need Manage Server permission.", ephemeral=True)
+            await interaction.response.send_message(
+                "You need Manage Server permission.",
+                ephemeral=True
+            )
             return
 
         duration_seconds = self.parse_duration(duration)
@@ -135,11 +131,31 @@ class Giveaways(commands.Cog):
         giveaway_id = str(interaction.id)
         end_time = int(datetime.datetime.utcnow().timestamp()) + duration_seconds
 
-        embed = discord.Embed(title="✨ ARAB'S STUDIO GIVEAWAY ✨", color=GW_COLOR)
-        embed.add_field(name="🎁 Prize", value=f"**{prize}**", inline=False)
-        embed.add_field(name="👥 Winners", value=str(winners), inline=True)
-        embed.add_field(name="📌 Requirements", value=requirements, inline=True)
-        embed.add_field(name="⏳ Ends In", value=self.format_duration(duration_seconds), inline=False)
+        embed = discord.Embed(
+            title="🎉✨ ARAB'S STUDIO GIVEAWAY ✨🎉",
+            color=discord.Color.from_rgb(138, 43, 226)
+        )
+
+        embed.description = f"""
+🎁 **Prize**
+> {prize}
+
+👑 **Winners**
+> {winners}
+
+📋 **Requirements**
+> {requirements}
+
+⏳ **Ends**
+> <t:{end_time}:R>
+
+🔥 Click the button below to enter!
+"""
+
+        embed.set_footer(
+            text=f"Hosted by {interaction.user}",
+            icon_url=interaction.user.display_avatar.url
+        )
 
         view = self.GiveawayView(self, giveaway_id)
 
@@ -160,59 +176,36 @@ class Giveaways(commands.Cog):
         }
         self.save_giveaways(data)
 
-        self.bot.loop.create_task(self.countdown_loop(giveaway_id))
+        self.bot.loop.create_task(self.wait_and_end(giveaway_id))
 
-    # ================= COUNTDOWN =================
+    # ================= WAIT AND END =================
 
-    async def countdown_loop(self, giveaway_id):
+    async def wait_and_end(self, giveaway_id):
 
-        while True:
-            await asyncio.sleep(30)
+        data = self.load_giveaways()
+        giveaway = data.get(giveaway_id)
+        if not giveaway:
+            return
 
-            data = self.load_giveaways()
-            if giveaway_id not in data:
-                return
+        remaining = giveaway["end_time"] - int(datetime.datetime.utcnow().timestamp())
+        if remaining > 0:
+            await asyncio.sleep(remaining)
 
-            giveaway = data[giveaway_id]
-            if giveaway["ended"]:
-                return
-
-            remaining = giveaway["end_time"] - int(datetime.datetime.utcnow().timestamp())
-
-            if remaining <= 0:
-                await self.end_giveaway(giveaway_id)
-                return
-
-            try:
-                channel = self.bot.get_channel(giveaway["channel_id"])
-                message = await channel.fetch_message(giveaway["message_id"])
-
-                embed = message.embeds[0]
-                embed.set_field_at(3, name="⏳ Ends In",
-                                   value=self.format_duration(remaining),
-                                   inline=False)
-
-                await message.edit(embed=embed)
-            except:
-                return
+        await self.end_giveaway(giveaway_id)
 
     # ================= END GIVEAWAY =================
 
     async def end_giveaway(self, giveaway_id):
 
         data = self.load_giveaways()
-        if giveaway_id not in data:
+        giveaway = data.get(giveaway_id)
+        if not giveaway:
             return
 
-        giveaway = data[giveaway_id]
         giveaway["ended"] = True
-
-        channel = self.bot.get_channel(giveaway["channel_id"])
-        message = await channel.fetch_message(giveaway["message_id"])
-
         entries = giveaway["entries"]
-        winners = []
 
+        winners = []
         if entries:
             winners = random.sample(entries, min(giveaway["winners"], len(entries)))
 
@@ -223,19 +216,50 @@ class Giveaways(commands.Cog):
         if winners:
             winner_mentions = " ".join(f"<@{w}>" for w in winners)
 
-        embed = discord.Embed(title="🎉 GIVEAWAY ENDED", color=GW_COLOR)
-        embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
-        embed.add_field(name="👥 Entries", value=len(entries), inline=True)
-        embed.add_field(name="🏆 Winner(s)", value=winner_mentions, inline=False)
+        channel = self.bot.get_channel(giveaway["channel_id"])
+        message = await channel.fetch_message(giveaway["message_id"])
+
+        embed = discord.Embed(
+            title="🏆 GIVEAWAY ENDED 🏆",
+            color=discord.Color.gold()
+        )
+
+        embed.description = f"""
+🎁 **Prize**
+> {giveaway['prize']}
+
+👑 **Winner(s)**
+> {winner_mentions}
+
+🎉 Congratulations!
+"""
 
         await message.edit(embed=embed, view=None)
 
-        staff = self.bot.get_channel(STAFF_LOG_CHANNEL_ID)
-        if staff:
-            log = discord.Embed(title="🏆 Giveaway Ended", color=GW_COLOR)
-            log.add_field(name="Prize", value=giveaway["prize"])
-            log.add_field(name="Winners", value=winner_mentions)
-            await staff.send(embed=log)
+        # DM winners
+        for winner_id in winners:
+            try:
+                user = await self.bot.fetch_user(winner_id)
+
+                win_embed = discord.Embed(
+                    title="🎉 YOU WON THE GIVEAWAY! 🎉",
+                    color=discord.Color.gold()
+                )
+
+                win_embed.description = f"""
+🏆 **Prize**
+> {giveaway['prize']}
+
+📩 **Claim**
+> Create a ticket in <#{SUPPORT_CHANNEL_ID}>
+
+⏳ You have limited time before reroll.
+"""
+
+                await user.send(embed=win_embed)
+
+            except:
+                pass
 
     # ================= REROLL =================
 
@@ -278,16 +302,52 @@ class Giveaways(commands.Cog):
 
                 winner_mentions = " ".join(f"<@{w}>" for w in new_winners)
 
+                # DM old winners
+                for old in old_winners:
+                    if old not in new_winners:
+                        try:
+                            user = await self.bot.fetch_user(old)
+
+                            reroll_dm = discord.Embed(
+                                title="⚠️ Giveaway Rerolled",
+                                color=discord.Color.red()
+                            )
+
+                            reroll_dm.description = """
+🚫 You did not claim your reward in time.
+
+The giveaway has been rerolled and a new winner was selected.
+"""
+
+                            await user.send(embed=reroll_dm)
+
+                        except:
+                            pass
+
                 channel = self.bot.get_channel(giveaway["channel_id"])
                 message = await channel.fetch_message(giveaway["message_id"])
 
-                embed = discord.Embed(title="🎉 GIVEAWAY ENDED", color=GW_COLOR)
-                embed.add_field(name="🎁 Prize", value=giveaway["prize"], inline=False)
-                embed.add_field(name="👥 Entries", value=len(entries), inline=True)
-                embed.add_field(name="🏆 Winner(s)", value=winner_mentions, inline=False)
-                embed.set_footer(text="🔄 This giveaway has been rerolled.")
+                reroll_embed = discord.Embed(
+                    title="🔄 GIVEAWAY REROLLED 🔄",
+                    color=discord.Color.orange()
+                )
 
-                await message.edit(embed=embed)
+                reroll_embed.description = f"""
+🎁 **Prize**
+> {giveaway['prize']}
+
+👑 **New Winner(s)**
+> {winner_mentions}
+
+⚡ Previous winner did not claim in time.
+"""
+
+                reroll_embed.set_footer(
+                    text=f"Rerolled by {interaction.user}",
+                    icon_url=interaction.user.display_avatar.url
+                )
+
+                await message.edit(embed=reroll_embed, view=None)
 
                 await interaction.followup.send(
                     "Giveaway rerolled successfully.",
