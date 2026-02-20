@@ -22,18 +22,21 @@ class Welcome(commands.Cog):
         frames = []
 
         # ================= FONTS =================
-        font_title = ImageFont.truetype("Montserrat-Bold.ttf", 70)
-        font_user = ImageFont.truetype("Montserrat-Regular.ttf", 40)
-        font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
-        font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 110)
-        font_link = ImageFont.truetype("Montserrat-Regular.ttf", 24)
+        font_title = ImageFont.truetype("NotoSans-Bold.ttf", 70)
+        font_user = ImageFont.truetype("NotoSans-Regular.ttf", 40)
+        font_small = ImageFont.truetype("NotoSans-Regular.ttf", 28)
+        font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 110)
+        font_link = ImageFont.truetype("NotoSans-Regular.ttf", 24)
         font_arabic = ImageFont.truetype("NotoSansArabic_Condensed-Bold.ttf", 70)
 
         # ================= WORDS =================
         words = [
-            "WELCOME",
-            "WILLKOMMEN",
-            "BENVENUTO",
+            "WELCOME",          # English
+            "WILLKOMMEN",       # German
+            "BIENVENUE",        # French
+            "HOŞ GELDİN",       # Turkish
+            "BENVENUTO",        # Italian
+            "ようこそ",           # Japanese
         ]
 
         # Arabic
@@ -73,10 +76,10 @@ class Welcome(commands.Cog):
         avatar.putalpha(mask)
 
         # ================= TYPEWRITER SETTINGS =================
-        typing_speed = 6
-        deleting_speed = 1  # fast delete
+        typing_speed = 6          # slower typing
+        deleting_speed = 1        # fast delete
         pause_after_type = 25
-        pause_after_delete = 8  # ~0.5 sec (8 frames × 60ms)
+        pause_after_delete = 8    # ~0.5 sec
 
         timeline = []
         current_frame = 0
@@ -88,7 +91,6 @@ class Welcome(commands.Cog):
                 timeline.append((current_frame, word[:i]))
                 current_frame += typing_speed
 
-            # Pause after full word
             current_frame += pause_after_type
 
             # DELETE
@@ -96,7 +98,6 @@ class Welcome(commands.Cog):
                 timeline.append((current_frame, word[:i]))
                 current_frame += deleting_speed
 
-            # Pause after delete before next language
             current_frame += pause_after_delete
 
         total_frames = current_frame + 20
@@ -122,7 +123,7 @@ class Welcome(commands.Cog):
             img = Image.alpha_composite(img, cropped_pattern)
             draw = ImageDraw.Draw(img)
 
-            # ===== GET CURRENT TEXT =====
+            # ===== CURRENT TEXT =====
             welcome_text = ""
             for trigger_frame, text in timeline:
                 if frame >= trigger_frame:
@@ -130,15 +131,13 @@ class Welcome(commands.Cog):
                 else:
                     break
 
-            # Blinking cursor
             if frame % 20 < 10:
                 welcome_text += "|"
 
-            # ===== DRAW TEXT =====
             clean_text = welcome_text.replace("|", "")
 
             if clean_text and clean_text in arabic_word:
-                draw.text((60, 40), welcome_text, font=font_arabic, fill=(255, 255, 255))  # Arabic higher
+                draw.text((60, 40), welcome_text, font=font_arabic, fill=(255, 255, 255))
             else:
                 draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
