@@ -27,19 +27,21 @@ class Welcome(commands.Cog):
         font_small = ImageFont.truetype("NotoSans-Regular.ttf", 28)
         font_logo = ImageFont.truetype("NotoSans-Bold.ttf", 110)
         font_link = ImageFont.truetype("NotoSans-Regular.ttf", 24)
+
         font_arabic = ImageFont.truetype("NotoSansArabic_Condensed-Bold.ttf", 70)
+        font_jp = ImageFont.truetype("NotoSansJP-Bold.ttf", 70)
 
         # ================= WORDS =================
         words = [
-            "WELCOME",          # English
-            "WILLKOMMEN",       # German
-            "BIENVENUE",        # French
-            "HOŞ GELDİN",       # Turkish
-            "BENVENUTO",        # Italian
-            "ようこそ",           # Japanese
+            "WELCOME",
+            "WILLKOMMEN",
+            "BIENVENUE",
+            "HOŞ GELDİN",
+            "BENVENUTO",
+            "ようこそ"
         ]
 
-        # Arabic
+        # Arabic reshaping
         arabic_full = "مرحباً بك"
         reshaped = arabic_reshaper.reshape(arabic_full)
         arabic_word = get_display(reshaped)
@@ -76,10 +78,10 @@ class Welcome(commands.Cog):
         avatar.putalpha(mask)
 
         # ================= TYPEWRITER SETTINGS =================
-        typing_speed = 4          # slower typing
-        deleting_speed = 1        # fast delete
+        typing_speed = 6
+        deleting_speed = 1
         pause_after_type = 25
-        pause_after_delete = 8    # ~0.5 sec
+        pause_after_delete = 8
 
         timeline = []
         current_frame = 0
@@ -136,8 +138,13 @@ class Welcome(commands.Cog):
 
             clean_text = welcome_text.replace("|", "")
 
+            # FONT DETECTION
             if clean_text and clean_text in arabic_word:
                 draw.text((60, 40), welcome_text, font=font_arabic, fill=(255, 255, 255))
+
+            elif any("\u3040" <= c <= "\u30ff" for c in clean_text):
+                draw.text((60, 60), welcome_text, font=font_jp, fill=(255, 255, 255))
+
             else:
                 draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
