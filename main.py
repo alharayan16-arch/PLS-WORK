@@ -18,7 +18,7 @@ async def on_ready():
 async def load_extensions():
     await bot.load_extension("giveaways")
     await bot.load_extension("welcome")
-
+    await bot.load_extension("staff")
 async def main():
     async with bot:
         await load_extensions()
