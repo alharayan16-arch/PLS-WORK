@@ -119,22 +119,20 @@ class Welcome(commands.Cog):
                 cumulative += seq_length
 
             # Draw welcome text
-            if welcome_text in arabic_sequence:
-                text_width = draw.textlength(welcome_text, font=font_arabic)
-                draw.text(
-                    (width - text_width - 60, 60),
-                    welcome_text,
-                    font=font_arabic,
-                    fill=(255, 255, 255)
-                )
-            else:
-                draw.text(
-                    (60, 60),
-                    welcome_text,
-                    font=font_title,
-                    fill=(255, 255, 255)
-                )
-
+ if welcome_text in arabic_sequence:
+    draw.text(
+        (60, 60),
+        welcome_text,
+        font=font_arabic,
+        fill=(255, 255, 255)
+    )
+else:
+    draw.text(
+        (60, 60),
+        welcome_text,
+        font=font_title,
+        fill=(255, 255, 255)
+    )
             # ================= USER INFO =================
             draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
             draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
