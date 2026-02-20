@@ -70,7 +70,8 @@ class ModalOne(discord.ui.Modal, title="Staff Application (1/3)"):
             "q5": self.q5.value,
         }
 
-        await interaction.response.send_modal(ModalTwo(data))
+        await interaction.response.defer()
+        await interaction.followup.send_modal(ModalTwo(data))
 
 
 # ================= MODAL 2 =================
@@ -97,7 +98,8 @@ class ModalTwo(discord.ui.Modal, title="Staff Application (2/3)"):
             "q10": self.q10.value,
         })
 
-        await interaction.response.send_modal(ModalThree(data))
+        await interaction.response.defer()
+        await interaction.followup.send_modal(ModalThree(data))
 
 
 # ================= MODAL 3 =================
@@ -155,7 +157,8 @@ class ModalThree(discord.ui.Modal, title="Staff Application (3/3)"):
 class ApplyView(discord.ui.View):
     @discord.ui.button(label="📝 Apply for Staff", style=discord.ButtonStyle.primary)
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ModalOne())
+        await interaction.response.defer(ephemeral=True)
+        await interaction.followup.send_modal(ModalOne())
 
 
 # ================= COG =================
