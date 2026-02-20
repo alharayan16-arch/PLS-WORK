@@ -73,9 +73,9 @@ class Welcome(commands.Cog):
         avatar.putalpha(mask)
 
         # ================= TYPEWRITER SETTINGS =================
-        typing_speed = 4
+        typing_speed = 6
         deleting_speed = 1  # fast delete
-        pause_after_type = 20
+        pause_after_type = 25
         pause_after_delete = 8  # ~0.5 sec (8 frames × 60ms)
 
         timeline = []
@@ -138,7 +138,7 @@ class Welcome(commands.Cog):
             clean_text = welcome_text.replace("|", "")
 
             if clean_text and clean_text in arabic_word:
-                draw.text((60, 50), welcome_text, font=font_arabic, fill=(255, 255, 255))  # Arabic higher
+                draw.text((60, 40), welcome_text, font=font_arabic, fill=(255, 255, 255))  # Arabic higher
             else:
                 draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
