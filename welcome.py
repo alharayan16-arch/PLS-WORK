@@ -27,27 +27,21 @@ class Welcome(commands.Cog):
         font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
         font_logo = ImageFont.truetype("Montserrat-Bold.ttf", 110)
         font_link = ImageFont.truetype("Montserrat-Regular.ttf", 24)
-
         font_arabic = ImageFont.truetype("NotoSansArabic_Condensed-Bold.ttf", 70)
 
-        # ================= SEQUENCES =================
-        sequences = [
-            ["W","WE","WEL","WELC","WELCO","WELCOM","WELCOME"],
-            ["W","WI","WIL","WILL","WILLK","WILLKO","WILLKOM","WILLKOMM","WILLKOMME","WILLKOMMEN"],
-            ["B","BE","BEN","BENV","BENVE","BENVEN","BENVENU","BENVENUT","BENVENUTO"],
+        # ================= WORDS =================
+        words = [
+            "WELCOME",
+            "WILLKOMMEN",
+            "BENVENUTO",
         ]
 
-        # Arabic typing sequence
+        # Arabic word
         arabic_full = "مرحباً بك"
-        arabic_sequence = []
+        reshaped = arabic_reshaper.reshape(arabic_full)
+        arabic_word = get_display(reshaped)
 
-        for i in range(1, len(arabic_full) + 1):
-            partial = arabic_full[:i]
-            reshaped = arabic_reshaper.reshape(partial)
-            bidi_text = get_display(reshaped)
-            arabic_sequence.append(bidi_text)
-
-        sequences.append(arabic_sequence)
+        words.append(arabic_word)
 
         username = member.display_name
         member_count = f"Member #{member.guild.member_count}"
@@ -79,18 +73,39 @@ class Welcome(commands.Cog):
         ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
         avatar.putalpha(mask)
 
-        spacing = 60
-        typing_speed = 6
-        cycle_lengths = [len(seq) * typing_speed for seq in sequences]
-        total_cycle = sum(cycle_lengths)
-        total_frames = total_cycle + 30
+        # ================= TYPEWRITER TIMELINE =================
+        typing_speed = 4
+        deleting_speed = 3
+        pause_after_type = 20
 
+        timeline = []
+        current_frame = 0
+
+        for word in words:
+
+            # TYPE
+            for i in range(1, len(word) + 1):
+                timeline.append((current_frame, word[:i]))
+                current_frame += typing_speed
+
+            # PAUSE
+            current_frame += pause_after_type
+
+            # DELETE
+            for i in range(len(word), 0, -1):
+                timeline.append((current_frame, word[:i]))
+                current_frame += deleting_speed
+
+        total_frames = current_frame + 20
+
+        # ================= FRAME LOOP =================
         for frame in range(total_frames):
 
             img = base_bg.copy()
             draw = ImageDraw.Draw(img)
 
-            # ================= MOVING X/O PATTERN =================
+            # ===== MOVING X/O PATTERN =====
+            spacing = 60
             pattern_layer = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
             p_draw = ImageDraw.Draw(pattern_layer)
 
@@ -104,43 +119,32 @@ class Welcome(commands.Cog):
             img = Image.alpha_composite(img, cropped_pattern)
             draw = ImageDraw.Draw(img)
 
-            # ================= TYPING =================
-            cycle_frame = frame % total_cycle
-            cumulative = 0
-            welcome_text = "WELCOME"
-
-            for seq, seq_length in zip(sequences, cycle_lengths):
-                if cycle_frame < cumulative + seq_length:
-                    local_frame = cycle_frame - cumulative
-                    letter_index = min(len(seq)-1, local_frame // typing_speed)
-                    welcome_text = seq[letter_index]
+            # ===== GET CURRENT WORD STATE =====
+            welcome_text = ""
+            for trigger_frame, text in timeline:
+                if frame >= trigger_frame:
+                    welcome_text = text
+                else:
                     break
-                cumulative += seq_length
 
-            # Draw welcome text (Arabic now LEFT side)
-            if welcome_text in arabic_sequence:
-                draw.text(
-                    (60, 60),
-                    welcome_text,
-                    font=font_arabic,
-                    fill=(255, 255, 255)
-                )
+            # Blinking cursor
+            if frame % 20 < 10:
+                welcome_text += "|"
+
+            # ===== DRAW TEXT (Arabic left side too) =====
+            if welcome_text.replace("|", "") == arabic_word[:len(welcome_text.replace("|", ""))]:
+                draw.text((60, 60), welcome_text, font=font_arabic, fill=(255, 255, 255))
             else:
-                draw.text(
-                    (60, 60),
-                    welcome_text,
-                    font=font_title,
-                    fill=(255, 255, 255)
-                )
+                draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 
-            # ================= USER INFO =================
+            # ===== USER INFO =====
             draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
             draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
             draw.text((200, 230), join_time, font=font_small, fill=(230, 230, 255))
 
             img.paste(avatar, (60, 150), avatar)
 
-            # ================= MOVING STRIPES =================
+            # ===== MOVING STRIPES =====
             stripe_canvas = Image.new("RGBA", (width * 2, height), (0, 0, 0, 0))
             s_draw = ImageDraw.Draw(stripe_canvas)
 
@@ -167,7 +171,7 @@ class Welcome(commands.Cog):
             img = Image.alpha_composite(img, cropped_stripes)
             draw = ImageDraw.Draw(img)
 
-            # ================= GLOW AS LOGO =================
+            # ===== GLOW AS LOGO =====
             letter_spacing = -8
             a_width = draw.textlength("A", font=font_logo)
             s_width = draw.textlength("S", font=font_logo)
