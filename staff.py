@@ -18,7 +18,10 @@ class ReviewView(discord.ui.View):
 
         role = interaction.guild.get_role(STAFF_ROLE_ID)
         if role:
-            await self.applicant.add_roles(role)
+            try:
+                await self.applicant.add_roles(role)
+            except Exception as e:
+                print(e)
 
         try:
             await self.applicant.send(
@@ -51,9 +54,9 @@ class ReviewView(discord.ui.View):
         await interaction.followup.send("Applicant denied.")
 
 
-# ================= MODAL 1 =================
+# ================= MODAL 1 (First 5 Questions) =================
 
-class ModalOne(discord.ui.Modal, title="Staff Application (1/3)"):
+class ModalOne(discord.ui.Modal, title="Staff Application (1/2)"):
 
     q1 = discord.ui.TextInput(label="How old are you?")
     q2 = discord.ui.TextInput(label="What timezone are you in?")
@@ -63,59 +66,84 @@ class ModalOne(discord.ui.Modal, title="Staff Application (1/3)"):
 
     async def on_submit(self, interaction: discord.Interaction):
         data = {
-            "q1": self.q1.value,
-            "q2": self.q2.value,
-            "q3": self.q3.value,
-            "q4": self.q4.value,
-            "q5": self.q5.value,
+            "How old are you?": self.q1.value,
+            "What timezone are you in?": self.q2.value,
+            "How active are you per day/week?": self.q3.value,
+            "Read and understood rules?": self.q4.value,
+            "Previous staff experience?": self.q5.value,
         }
 
-        await interaction.response.defer()
-        await interaction.followup.send_modal(ModalTwo(data))
+        await interaction.response.send_modal(ModalTwo(data))
 
 
-# ================= MODAL 2 =================
+# ================= MODAL 2 (Remaining 6 Questions) =================
 
-class ModalTwo(discord.ui.Modal, title="Staff Application (2/3)"):
+class ModalTwo(discord.ui.Modal, title="Staff Application (2/2)"):
 
     def __init__(self, previous_answers):
         super().__init__()
         self.previous_answers = previous_answers
 
-    q6 = discord.ui.TextInput(label="Experience with moderation bots?")
-    q7 = discord.ui.TextInput(label="Why should we choose you?", style=discord.TextStyle.paragraph)
-    q8 = discord.ui.TextInput(label="Member spamming but 'joking' — what do you do?", style=discord.TextStyle.paragraph)
-    q9 = discord.ui.TextInput(label="Two members arguing — how do you handle it?", style=discord.TextStyle.paragraph)
-    q10 = discord.ui.TextInput(label="Staff abusing power — what do you do?", style=discord.TextStyle.paragraph)
+        self.q6 = discord.ui.TextInput(
+            label="Experience with moderation bots (Dyno, Carl-bot, etc.)?"
+        )
+        self.q7 = discord.ui.TextInput(
+            label="Why should we choose you over others?",
+            style=discord.TextStyle.paragraph
+        )
+        self.q8 = discord.ui.TextInput(
+            label="Member spamming but 'joking' — what do you do?",
+            style=discord.TextStyle.paragraph
+        )
+        self.q9 = discord.ui.TextInput(
+            label="Two members arguing — how do you handle it?",
+            style=discord.TextStyle.paragraph
+        )
+        self.q10 = discord.ui.TextInput(
+            label="Staff abusing power — what would you do?",
+            style=discord.TextStyle.paragraph
+        )
+
+        self.q11 = discord.ui.TextInput(
+            label="A friend breaks the rules — how do you respond?",
+            style=discord.TextStyle.paragraph
+        )
+
+        # Add only first 5 to modal (Discord limit)
+        self.add_item(self.q6)
+        self.add_item(self.q7)
+        self.add_item(self.q8)
+        self.add_item(self.q9)
+        self.add_item(self.q10)
 
     async def on_submit(self, interaction: discord.Interaction):
+
+        # Save first 10 answers
         data = self.previous_answers
         data.update({
-            "q6": self.q6.value,
-            "q7": self.q7.value,
-            "q8": self.q8.value,
-            "q9": self.q9.value,
-            "q10": self.q10.value,
+            "Bot experience?": self.q6.value,
+            "Why choose you?": self.q7.value,
+            "Spamming scenario?": self.q8.value,
+            "Argument scenario?": self.q9.value,
+            "Staff abuse scenario?": self.q10.value,
         })
 
-        await interaction.response.defer()
-        await interaction.followup.send_modal(ModalThree(data))
+        # Since Discord only allows 5 per modal,
+        # we collect question 11 through ephemeral reply
 
+        await interaction.response.send_message(
+            "Final Question:\n\nA friend breaks the rules — how do you respond?",
+            ephemeral=True
+        )
 
-# ================= MODAL 3 =================
+        def check(m):
+            return m.author == interaction.user and m.channel == interaction.channel
 
-class ModalThree(discord.ui.Modal, title="Staff Application (3/3)"):
-
-    def __init__(self, previous_answers):
-        super().__init__()
-        self.previous_answers = previous_answers
-
-    q11 = discord.ui.TextInput(label="A friend breaks the rules — how do you respond?", style=discord.TextStyle.paragraph)
-
-    async def on_submit(self, interaction: discord.Interaction):
-
-        data = self.previous_answers
-        data["q11"] = self.q11.value
+        try:
+            msg = await interaction.client.wait_for("message", check=check, timeout=300)
+            data["Friend breaks rules?"] = msg.content
+        except:
+            return
 
         embed = discord.Embed(
             title="📩 New Staff Application",
@@ -124,29 +152,14 @@ class ModalThree(discord.ui.Modal, title="Staff Application (3/3)"):
 
         embed.add_field(name="Applicant", value=interaction.user.mention, inline=False)
 
-        questions = [
-            "How old are you?",
-            "Timezone?",
-            "Activity?",
-            "Read rules?",
-            "Previous staff?",
-            "Bot experience?",
-            "Why choose you?",
-            "Spamming scenario?",
-            "Argument scenario?",
-            "Staff abuse scenario?",
-            "Friend breaks rules?"
-        ]
-
-        for i, key in enumerate(data):
-            embed.add_field(name=questions[i], value=data[key], inline=False)
+        for question, answer in data.items():
+            embed.add_field(name=question, value=answer, inline=False)
 
         review_channel = interaction.guild.get_channel(REVIEW_CHANNEL_ID)
-
         if review_channel:
             await review_channel.send(embed=embed, view=ReviewView(interaction.user))
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "✅ Application submitted successfully!",
             ephemeral=True
         )
@@ -157,8 +170,7 @@ class ModalThree(discord.ui.Modal, title="Staff Application (3/3)"):
 class ApplyView(discord.ui.View):
     @discord.ui.button(label="📝 Apply for Staff", style=discord.ButtonStyle.primary)
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        await interaction.followup.send_modal(ModalOne())
+        await interaction.response.send_modal(ModalOne())
 
 
 # ================= COG =================
