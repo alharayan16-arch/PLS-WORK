@@ -76,7 +76,7 @@ class Welcome(commands.Cog):
         avatar.putalpha(mask)
 
         # ================= TYPEWRITER SETTINGS =================
-        typing_speed = 6          # slower typing
+        typing_speed = 4          # slower typing
         deleting_speed = 1        # fast delete
         pause_after_type = 25
         pause_after_delete = 8    # ~0.5 sec
