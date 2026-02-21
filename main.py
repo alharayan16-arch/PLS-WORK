@@ -1,16 +1,34 @@
+import discord
+from discord.ext import commands
+import os
+import asyncio
+
+TOKEN = os.getenv("TOKEN")
+
+intents = discord.Intents.default()
+intents.members = True
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+
+@bot.event
+async def on_ready():
+    await bot.tree.sync()
+    print(f"Logged in as {bot.user}")
+
+
 async def load_extensions():
-    try:
-        await bot.load_extension("giveaways")
-        print("giveaways loaded")
+    await bot.load_extension("giveaways")
+    await bot.load_extension("welcome")
+    await bot.load_extension("staff")
+    await bot.load_extension("goodbye")  # 🔥 ADD IT HERE
 
-        await bot.load_extension("welcome")
-        print("welcome loaded")
 
-        await bot.load_extension("staff")
-        print("staff loaded")
+async def main():
+    async with bot:
+        await load_extensions()
+        await bot.start(TOKEN)
 
-        await bot.load_extension("goodbye")
-        print("goodbye loaded")
 
-    except Exception as e:
-        print("EXTENSION ERROR:", e)
+asyncio.run(main())
