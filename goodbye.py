@@ -220,7 +220,7 @@ class Goodbye(commands.Cog):
         gif_path = await self.create_goodbye_gif(member)
 
         await channel.send(
-            content=f"💔 {member.display_name} has left Arab’s Studio.",
+            content=f" {member.display_name} has left Arab’s Studio.We hope you enjoyed your stay!",
             file=discord.File(gif_path)
         )
 
