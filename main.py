@@ -160,8 +160,12 @@ async def start_webserver():
 # =========================
 
 async def main():
-    await start_webserver()
-    async with bot:
-        await bot.start(TOKEN)
+    loop = asyncio.get_event_loop()
+
+    # Start webserver as background task
+    loop.create_task(start_webserver())
+
+    # Start discord bot
+    await bot.start(TOKEN)
 
 asyncio.run(main())
