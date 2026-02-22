@@ -15,7 +15,7 @@ import traceback
 
 TOKEN = os.getenv("TOKEN")
 WEBHOOK_URL = "https://discord.com/api/webhooks/1474841301567410389/ZgQn4ISI1dNbTSfIu3vhd68BcmBUX6yX_XpAG6aNXM0zf1NOElEGJnkvcZQslGdkZFdn"
-PORT = int(os.getenv("PORT", 3000))
+PORT = int(os.getenv("PORT"))
 
 # =========================
 # DISCORD BOT
