@@ -59,8 +59,8 @@ async def generate_image(request):
         img.paste(r_avatar, (780, 80))
 
         # Fonts
-        font_big = ImageFont.truetype("Montserrat-Bold.ttf", 60)
-        font_small = ImageFont.truetype("Montserrat-Regular.ttf", 30)
+        font_big = ImageFont.load_default()
+        font_small = ImageFont.load_default()
 
         # Text
         draw.text((500, 110), f"{amount:,}", font=font_big, fill="#ff00ff", anchor="mm")
