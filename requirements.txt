@@ -3,3 +3,4 @@ Pillow
 aiohttp
 arabic-reshaper
 python-bidi
+requests
