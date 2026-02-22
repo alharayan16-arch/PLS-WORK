@@ -46,27 +46,77 @@ async def generate_image(request):
         donator_avatar = data["donatorAvatar"]
         raiser_avatar = data["raiserAvatar"]
 
-        # Create base image
-        img = Image.new("RGB", (1000, 300), "#2b2d31")
+        # Base canvas
+        width, height = 1000, 360
+        img = Image.new("RGB", (width, height), "#1e1f22")
         draw = ImageDraw.Draw(img)
 
+        # Card background
+        margin = 40
+        card_width = width - 80
+        card_height = height - 80
+        card = Image.new("RGB", (card_width, card_height), "#2b2d31")
+        img.paste(card, (margin, margin))
+
+        # Left pink accent bar
+        draw.rectangle(
+            [(margin, margin), (margin + 8, height - margin)],
+            fill="#ff00ff"
+        )
+
         # Download avatars
-        d_avatar = Image.open(io.BytesIO(requests.get(donator_avatar).content)).resize((140, 140))
-        r_avatar = Image.open(io.BytesIO(requests.get(raiser_avatar).content)).resize((140, 140))
+        d_avatar = Image.open(io.BytesIO(requests.get(donator_avatar).content)).resize((160, 160))
+        r_avatar = Image.open(io.BytesIO(requests.get(raiser_avatar).content)).resize((160, 160))
 
-        img.paste(d_avatar, (80, 80))
-        img.paste(r_avatar, (780, 80))
+        # Circular mask
+        mask = Image.new("L", (160, 160), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.ellipse((0, 0, 160, 160), fill=255)
 
-        # Use default font temporarily (to avoid font crash)
-        font_big = ImageFont.load_default()
-        font_small = ImageFont.load_default()
+        # Pink border circle
+        border_size = 10
+        border_circle = Image.new("RGB", (180, 180), "#ff00ff")
+        border_mask = Image.new("L", (180, 180), 0)
+        ImageDraw.Draw(border_mask).ellipse((0, 0, 180, 180), fill=255)
 
-        draw.text((500, 110), f"{amount:,}", font=font_big, fill="#ff00ff", anchor="mm")
-        draw.text((500, 170), "donated to", font=font_small, fill="white", anchor="mm")
+        # Paste borders
+        img.paste(border_circle, (120, 90), border_mask)
+        img.paste(border_circle, (700, 90), border_mask)
 
-        draw.text((150, 240), f"@{donator}", font=font_small, fill="white")
-        draw.text((850, 240), f"@{raiser}", font=font_small, fill="white", anchor="rm")
+        # Paste avatars
+        img.paste(d_avatar, (130, 100), mask)
+        img.paste(r_avatar, (710, 100), mask)
 
+        # Fonts (make sure fonts exist in project folder)
+        try:
+            font_big = ImageFont.truetype("Montserrat-Bold.ttf", 70)
+            font_mid = ImageFont.truetype("Montserrat-Bold.ttf", 45)
+            font_small = ImageFont.truetype("Montserrat-Regular.ttf", 28)
+        except:
+            font_big = ImageFont.load_default()
+            font_mid = ImageFont.load_default()
+            font_small = ImageFont.load_default()
+
+        # Big donation amount
+        draw.text((500, 140), f"{amount:,}",
+                  font=font_big, fill="#ff00ff", anchor="mm")
+
+        draw.text((500, 200), "donated to",
+                  font=font_mid, fill="white", anchor="mm")
+
+        # Usernames
+        draw.text((210, 300), f"@{donator}",
+                  font=font_small, fill="white", anchor="mm")
+
+        draw.text((790, 300), f"@{raiser}",
+                  font=font_small, fill="white", anchor="mm")
+
+        # Footer
+        draw.text((200, 325),
+                  "Donated on • Today",
+                  font=font_small, fill="#b9bbbe")
+
+        # Save to memory
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         buffer.seek(0)
@@ -81,14 +131,14 @@ async def generate_image(request):
                 content_type="image/png"
             )
             response = await session.post(WEBHOOK_URL, data=form)
-            print("Webhook response status:", response.status)
+            print("Webhook status:", response.status)
 
-        return web.Response(text="Sent to Discord!")
+        return web.Response(text="Styled Donation Sent!")
 
-    except Exception as e:
+    except Exception:
         print("FULL ERROR TRACE:")
         traceback.print_exc()
-        return web.Response(status=500, text=str(e))
+        return web.Response(status=500, text="Internal Server Error")
 
 # =========================
 # START WEB SERVER
