@@ -87,9 +87,10 @@ async def generate_image(request):
 
         return web.Response(text="Sent to Discord")
 
-    except Exception as e:
-        print("ERROR:", e)
-        return web.Response(status=500, text="Error")
+     except Exception as e:
+        import traceback
+        import traceback
+        return web.Response(status=500, text=str(e))
 
 # =========================
 # START WEB SERVER
