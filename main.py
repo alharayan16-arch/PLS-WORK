@@ -7,15 +7,14 @@ from PIL import Image, ImageDraw, ImageFont
 import aiohttp
 import requests
 import io
+import traceback
 
 # =========================
 # CONFIG
 # =========================
 
 TOKEN = os.getenv("TOKEN")
-
 WEBHOOK_URL = "https://discord.com/api/webhooks/1474841301567410389/ZgQn4ISI1dNbTSfIu3vhd68BcmBUX6yX_XpAG6aNXM0zf1NOElEGJnkvcZQslGdkZFdn"
-
 PORT = int(os.getenv("PORT", 3000))
 
 # =========================
@@ -30,7 +29,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
     print(f"Logged in as {bot.user}")
 
 # =========================
@@ -40,6 +38,7 @@ async def on_ready():
 async def generate_image(request):
     try:
         data = await request.json()
+        print("RECEIVED DATA:", data)
 
         donator = data["donatorName"]
         raiser = data["raiserName"]
@@ -47,7 +46,7 @@ async def generate_image(request):
         donator_avatar = data["donatorAvatar"]
         raiser_avatar = data["raiserAvatar"]
 
-        # Create image
+        # Create base image
         img = Image.new("RGB", (1000, 300), "#2b2d31")
         draw = ImageDraw.Draw(img)
 
@@ -58,18 +57,16 @@ async def generate_image(request):
         img.paste(d_avatar, (80, 80))
         img.paste(r_avatar, (780, 80))
 
-        # Fonts
+        # Use default font temporarily (to avoid font crash)
         font_big = ImageFont.load_default()
         font_small = ImageFont.load_default()
 
-        # Text
         draw.text((500, 110), f"{amount:,}", font=font_big, fill="#ff00ff", anchor="mm")
         draw.text((500, 170), "donated to", font=font_small, fill="white", anchor="mm")
 
         draw.text((150, 240), f"@{donator}", font=font_small, fill="white")
         draw.text((850, 240), f"@{raiser}", font=font_small, fill="white", anchor="rm")
 
-        # Save to memory
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         buffer.seek(0)
@@ -83,13 +80,14 @@ async def generate_image(request):
                 filename="donation.png",
                 content_type="image/png"
             )
-            await session.post(WEBHOOK_URL, data=form)
+            response = await session.post(WEBHOOK_URL, data=form)
+            print("Webhook response status:", response.status)
 
-        return web.Response(text="Sent to Discord")
+        return web.Response(text="Sent to Discord!")
 
-     except Exception as e:
-        import traceback
-        import traceback
+    except Exception as e:
+        print("FULL ERROR TRACE:")
+        traceback.print_exc()
         return web.Response(status=500, text=str(e))
 
 # =========================
@@ -113,7 +111,6 @@ async def start_webserver():
 
 async def main():
     await start_webserver()
-
     async with bot:
         await bot.start(TOKEN)
 
