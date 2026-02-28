@@ -154,7 +154,7 @@ class Welcome(commands.Cog):
             if clean_text and clean_text in arabic_word:
                 draw.text((60, 40), welcome_text, font=font_arabic, fill=(255, 255, 255))
             elif any("\u3040" <= c <= "\u30ff" for c in clean_text):
-                draw.text((60, 60), welcome_text, font=font_jp, fill=(255, 255, 255))
+                draw.text((60, 35), welcome_text, font=font_jp, fill=(255, 255, 255))
             else:
                 draw.text((60, 60), welcome_text, font=font_title, fill=(255, 255, 255))
 

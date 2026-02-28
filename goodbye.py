@@ -50,7 +50,7 @@ class Goodbye(commands.Cog):
         member_count = f"Member #{member.guild.member_count}"
         leave_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
 
-        # ================= SIMPLE BACKGROUND =================
+        # ================= BACKGROUND =================
         base_bg = Image.new("RGBA", (width, height), (40, 0, 80))
 
         # ================= PREBUILD PATTERN =================
@@ -93,7 +93,7 @@ class Goodbye(commands.Cog):
         ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
         avatar.putalpha(mask)
 
-        # ================= TYPEWRITER SPEED (OPTIMIZED) =================
+        # ================= TYPEWRITER SPEED =================
         typing_speed = 4
         deleting_speed = 2
         pause_after_type = 12
@@ -138,7 +138,7 @@ class Goodbye(commands.Cog):
 
             draw = ImageDraw.Draw(img)
 
-            # Current text
+            # ================= GOODBYE TEXT (MOVED HIGHER) =================
             goodbye_text = ""
             for trigger_frame, text in timeline:
                 if frame >= trigger_frame:
@@ -152,20 +152,20 @@ class Goodbye(commands.Cog):
             clean_text = goodbye_text.replace("|", "")
 
             if clean_text and clean_text in arabic_word:
-                draw.text((60, 40), goodbye_text, font=font_arabic, fill=(255, 255, 255))
+                draw.text((60, 25), goodbye_text, font=font_arabic, fill=(255, 255, 255))
             elif any("\u3040" <= c <= "\u30ff" for c in clean_text):
-                draw.text((60, 60), goodbye_text, font=font_jp, fill=(255, 255, 255))
+                draw.text((60, 25), goodbye_text, font=font_jp, fill=(255, 255, 255))
             else:
-                draw.text((60, 60), goodbye_text, font=font_title, fill=(255, 255, 255))
+                draw.text((60, 25), goodbye_text, font=font_title, fill=(255, 255, 255))
 
-            # User info
-            draw.text((200, 150), username, font=font_user, fill=(255, 255, 255))
-            draw.text((200, 200), member_count, font=font_small, fill=(230, 230, 255))
-            draw.text((200, 230), leave_time, font=font_small, fill=(230, 230, 255))
+            # ================= USER INFO (MOVED HIGHER) =================
+            img.paste(avatar, (60, 100), avatar)
 
-            img.paste(avatar, (60, 150), avatar)
+            draw.text((200, 100), username, font=font_user, fill=(255, 255, 255))
+            draw.text((200, 145), member_count, font=font_small, fill=(230, 230, 255))
+            draw.text((200, 175), leave_time, font=font_small, fill=(230, 230, 255))
 
-            # Logo (no blur)
+            # ================= LOGO =================
             letter_spacing = -8
             a_width = draw.textlength("A", font=font_logo)
             as_x = width - a_width - draw.textlength("S", font=font_logo) - 140
