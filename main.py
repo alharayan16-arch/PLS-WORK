@@ -14,10 +14,10 @@ import traceback
 # =========================
 
 TOKEN = os.getenv("TOKEN")
-WEBHOOK_URL = "https://discord.com/api/webhooks/1474841301567410389/ZgQn4ISI1dNbTSfIu3vhd68BcmBUX6yX_XpAG6aNXM0zf1NOElEGJnkvcZQslGdkZFdn"
+WEBHOOK_URL = "YOUR_WEBHOOK_URL_HERE"  # optional, replace if needed
 
 # =========================
-# DISCORD BOT
+# DISCORD BOT SETUP
 # =========================
 
 intents = discord.Intents.default()
@@ -26,9 +26,20 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# =========================
+# LOAD COGS
+# =========================
+
+async def load_extensions():
+    await bot.load_extension("welcome")
+    await bot.load_extension("goodbye")
+    await bot.load_extension("staff")
+    await bot.load_extension("giveaways")
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    print("Bot is ready.")
 
 # =========================
 # IMAGE GENERATION ENDPOINT
@@ -112,7 +123,7 @@ async def generate_image(request):
         img.save(buffer, format="PNG")
         buffer.seek(0)
 
-        # Send to Discord webhook
+        # Send to webhook (optional)
         async with aiohttp.ClientSession() as session:
             form = aiohttp.FormData()
             form.add_field(
@@ -142,24 +153,25 @@ async def start_webserver():
     runner = web.AppRunner(app)
     await runner.setup()
 
-    # IMPORTANT: Read PORT at runtime
-    port = int(os.environ["PORT"])
+    port = int(os.environ.get("PORT", 8000))
     site = web.TCPSite(runner, "0.0.0.0", port)
 
     await site.start()
     print(f"Web server started on port {port}")
 
 # =========================
-# MAIN
+# MAIN STARTUP
 # =========================
 
 async def main():
-    loop = asyncio.get_event_loop()
-
     # Start web server in background
-    loop.create_task(start_webserver())
+    asyncio.create_task(start_webserver())
+
+    # Load cogs
+    await load_extensions()
 
     # Start Discord bot
     await bot.start(TOKEN)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

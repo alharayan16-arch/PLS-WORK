@@ -1,6 +1,6 @@
-discord.py
-Pillow
-aiohttp
-arabic-reshaper
-python-bidi
-requests
+requirements.txt
+main.py
+welcome.py
+goodbye.py
+staff.py
+giveaways.py
