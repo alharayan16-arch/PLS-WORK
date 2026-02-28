@@ -18,7 +18,7 @@ class Welcome(commands.Cog):
 
     async def create_welcome_gif(self, member):
 
-        width, height = 1000, 400
+        width, height = 900, 350
         frames = []
 
         # ================= FONTS =================
@@ -55,13 +55,7 @@ class Welcome(commands.Cog):
         base_bg = Image.new("RGB", (width, height))
         bg_draw = ImageDraw.Draw(base_bg)
 
-        for y in range(height):
-            for x in range(width):
-                ratio = (x + y) / (width + height)
-                r = int(55 - ratio * 30)
-                g = 0
-                b = int(105 - ratio * 50)
-                bg_draw.point((x, y), fill=(r, g, b))
+        base_bg = Image.new("RGBA", (width, height), (40, 0, 80))
 
         base_bg = base_bg.convert("RGBA")
 
