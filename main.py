@@ -33,8 +33,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def load_extensions():
     await bot.load_extension("welcome")
     await bot.load_extension("goodbye")
-    await bot.load_extension("staff")
-    await bot.load_extension("giveaways")
 
 @bot.event
 async def on_ready():
